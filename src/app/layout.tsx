@@ -1,14 +1,9 @@
 import type { Metadata } from "next"
-import { Inter, Outfit } from "next/font/google"
+import { Outfit } from "next/font/google"
 import "./globals.css"
 import { Providers } from "@/components/Providers"
 import { Header } from "@/components/layout/Header"
 import { Footer } from "@/components/layout/Footer"
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-})
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -33,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${outfit.variable} font-sans antialiased`}>
+      <body className={`${outfit.variable} font-sans antialiased`}>
         <Providers>
           <div className="flex min-h-screen flex-col">
             <Header />
