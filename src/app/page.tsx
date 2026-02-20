@@ -60,7 +60,7 @@ export default async function Home() {
             {/* Frosted glass text overlay */}
             <div className="absolute left-6 top-[12%] sm:left-8 md:left-10 backdrop-blur-[17.5px] bg-[rgba(217,217,217,0.10)] border border-[rgba(255,255,255,0.31)] rounded-[20px] px-6 py-4">
               <h1
-                className="text-3xl sm:text-4xl md:text-5xl lg:text-[60px] font-bold text-white leading-tight"
+                className="text-3xl sm:text-4xl md:text-5xl lg:text-[55px] font-bold text-white leading-tight"
                 style={{ fontFamily: "var(--font-outfit), sans-serif" }}
               >
                 Events built for business
@@ -78,8 +78,8 @@ export default async function Home() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <h2
-              className="text-[40px] font-bold text-black leading-normal"
-              style={{ fontFamily: "var(--font-outfit), sans-serif" }}
+              className="text-[35px] font-bold text-black leading-normal"
+              style={{ fontFamily: "var(--font-outfit)" }}
             >
               Upcoming events
             </h2>
@@ -96,7 +96,7 @@ export default async function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 bg-white">
+      <section className="py-15 bg-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900">
@@ -157,61 +157,7 @@ export default async function Home() {
             </div>
           </div>
         </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 bg-gray-50">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="bg-blue-600 rounded-2xl px-8 py-16 text-center">
-            <h2 className="text-3xl font-bold text-white">
-              Ready to Create Your Event?
-            </h2>
-            <p className="mt-4 text-lg text-blue-100">
-              Join thousands of organizers who trust OpenEvents for their events.
-            </p>
-            {canCreateEvents && (
-              <Link href="/create-event" className="mt-8 inline-block">
-                <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50">
-                  Get Started for Free
-                </Button>
-              </Link>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works Section */}
-      <section className="py-20 bg-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-900">
-              How It Works
-            </h2>
-            <p className="mt-4 text-lg text-gray-600">
-              Get your event up and running in minutes
-            </p>
-          </div>
-
-          <div className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-4">
-            {[
-              { step: "1", title: "Create Account", desc: "Sign up as an organizer in seconds" },
-              { step: "2", title: "Add Event Details", desc: "Fill in your event information" },
-              { step: "3", title: "Set Up Tickets", desc: "Configure ticket types and pricing" },
-              { step: "4", title: "Start Selling", desc: "Publish and share with your audience" },
-            ].map((item) => (
-              <div key={item.step} className="text-center">
-                <div className="mx-auto h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-lg">
-                  {item.step}
-                </div>
-                <h3 className="mt-4 text-lg font-semibold text-gray-900">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-gray-600">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      </section>  
     </div>
   )
 }
