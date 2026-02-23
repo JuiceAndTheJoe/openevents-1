@@ -1,6 +1,6 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentUser, hasRole } from '@/lib/auth'
+import { OrganizerSidebarNav } from '@/components/dashboard/OrganizerSidebarNav'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
@@ -23,13 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-8 lg:grid-cols-[240px_1fr]">
       <aside className="h-fit rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Organizer</h2>
-        <nav className="mt-3 space-y-1 text-sm">
-          <Link href="/dashboard/scan" className="block rounded-md bg-blue-600 px-3 py-2 font-semibold text-white hover:bg-blue-700">Scan Tickets</Link>
-          <Link href="/dashboard" className="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-50">Overview</Link>
-          <Link href="/dashboard/events" className="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-50">Events</Link>
-          <Link href="/dashboard/settings" className="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-50">Profile Settings</Link>
-          <Link href="/dashboard/settings/account" className="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-50">Account Settings</Link>
-        </nav>
+        <OrganizerSidebarNav />
       </aside>
       <div>{children}</div>
     </div>

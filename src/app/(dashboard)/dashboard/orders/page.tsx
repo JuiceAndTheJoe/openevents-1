@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { OrderList } from '@/components/dashboard/OrderList'
+import { OrderList, type DashboardOrderListItem } from '@/components/dashboard/OrderList'
 import { isCancellationDeadlinePassed } from '@/lib/utils'
 
 export default async function DashboardOrdersPage() {
@@ -21,6 +21,7 @@ export default async function DashboardOrdersPage() {
           title: true,
           slug: true,
           startDate: true,
+          coverImage: true,
           cancellationDeadlineHours: true,
         },
       },
@@ -39,7 +40,7 @@ export default async function DashboardOrdersPage() {
     },
   })
 
-  const mappedOrders = orders.map((order) => {
+  const mappedOrders: DashboardOrderListItem[] = orders.map((order) => {
     const canCancelByStatus = order.status === 'PENDING' || order.status === 'PENDING_INVOICE' || order.status === 'PAID'
     const beforeDeadline = !isCancellationDeadlinePassed(
       order.event.startDate,
@@ -47,7 +48,29 @@ export default async function DashboardOrdersPage() {
     )
 
     return {
-      ...order,
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentMethod: order.paymentMethod,
+      createdAt: order.createdAt.toISOString(),
+      totalAmount: Number(order.totalAmount.toString()),
+      currency: order.currency,
+      buyerEmail: order.buyerEmail,
+      event: {
+        title: order.event.title,
+        slug: order.event.slug,
+        startDate: order.event.startDate.toISOString(),
+        coverImage: order.event.coverImage,
+      },
+      items: order.items.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice.toString()),
+        totalPrice: Number(item.totalPrice.toString()),
+        ticketType: {
+          name: item.ticketType.name,
+        },
+      })),
       canCancel: canCancelByStatus && beforeDeadline,
     }
   })
