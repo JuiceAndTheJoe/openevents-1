@@ -5,15 +5,15 @@ export interface DashboardOrderDetails {
   orderNumber: string
   status: string
   paymentMethod: string | null
-  createdAt: Date
-  totalAmount: { toString(): string } | string
+  createdAt: string
+  totalAmount: number
   currency: string
   buyerEmail: string
   items: Array<{
     id: string
     quantity: number
-    unitPrice: { toString(): string } | string
-    totalPrice: { toString(): string } | string
+    unitPrice: number
+    totalPrice: number
     ticketType: {
       name: string
     }

@@ -1,3 +1,7 @@
+import { redirect } from 'next/navigation'
+
+export default function HomePage() {
+  redirect('/events')
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { prisma } from "@/lib/db"

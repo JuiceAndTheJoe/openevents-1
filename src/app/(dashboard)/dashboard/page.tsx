@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { OrderStatus } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { requireOrganizerProfile } from '@/lib/dashboard/organizer'
@@ -105,9 +104,6 @@ export default async function DashboardHomePage() {
           <h1 className="text-3xl font-bold text-gray-900">Welcome, {organizerProfile.orgName}</h1>
           <p className="text-gray-600">Overview of your events, orders, and revenue.</p>
         </div>
-        <Link href="/create-event" className="inline-flex rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white">
-          Create Event
-        </Link>
       </div>
 
       <DashboardStats stats={stats} />

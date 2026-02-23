@@ -18,7 +18,7 @@ export function Header() {
   const canAccessMyEvents = Boolean(isOrganizer)
   const avatarFallback = (session?.user?.email?.[0] || 'U').toUpperCase()
   const displayName = session?.user?.name?.trim() || session?.user?.email?.split('@')[0] || 'Account'
-  const profileHref = canManageEvents ? '/dashboard/settings/account' : '/profile'
+  const profileHref = isOrganizer ? '/dashboard/profile' : '/profile'
 
   useEffect(() => {
     function onPointerDown(event: MouseEvent | TouchEvent) {
@@ -58,18 +58,20 @@ export function Header() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex md:items-center md:space-x-6">
-            <Link
-              href="/events"
-              className="text-gray-600 hover:text-gray-900 font-medium"
-            >
-              Browse Events
-            </Link>
             {canManageEvents && (
               <Link
                 href="/create-event"
-                className="text-gray-600 hover:text-gray-900 font-medium"
+                className="inline-flex min-w-[132px] items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
               >
                 Create Event
+              </Link>
+            )}
+            {canAccessMyEvents && (
+              <Link
+                href="/dashboard/scan"
+                className="inline-flex min-w-[132px] items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              >
+                Scan Tickets
               </Link>
             )}
             {canAccessMyEvents && (
@@ -80,7 +82,6 @@ export function Header() {
                 My Events
               </Link>
             )}
-
             {status === 'authenticated' ? (
               <>
                 {canManageEvents && (
@@ -206,20 +207,22 @@ export function Header() {
         {/* Mobile menu */}
         {mobileMenuOpen && (
           <div className="md:hidden py-4 space-y-2">
-            <Link
-              href="/events"
-              className="block px-3 py-2 text-gray-600 hover:bg-gray-50 rounded-md"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Browse Events
-            </Link>
             {canManageEvents && (
               <Link
                 href="/create-event"
-                className="block px-3 py-2 text-gray-600 hover:bg-gray-50 rounded-md"
+                className="block rounded-lg bg-blue-600 px-3 py-2.5 text-center text-sm font-semibold text-white hover:bg-blue-700"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Create Event
+              </Link>
+            )}
+            {canAccessMyEvents && (
+              <Link
+                href="/dashboard/scan"
+                className="block rounded-lg bg-blue-600 px-3 py-2.5 text-center text-sm font-semibold text-white hover:bg-blue-700"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Scan Tickets
               </Link>
             )}
             {canAccessMyEvents && (

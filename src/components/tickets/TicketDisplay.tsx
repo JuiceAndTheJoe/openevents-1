@@ -1,3 +1,5 @@
+import Link from 'next/link'
+import { CalendarPlus, ExternalLink } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatDateTime } from '@/lib/utils'
 import { DownloadTicketsButton } from '@/components/tickets/DownloadTicketsButton'
@@ -79,12 +81,20 @@ export function TicketDisplay({ order }: TicketDisplayProps) {
             {order.currency}
           </p>
           <div className="flex flex-wrap items-center gap-3 pt-3 print:hidden">
+            <Link
+              href={`/events/${order.event.slug}`}
+              className="inline-flex h-9 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              <ExternalLink className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              View Event
+            </Link>
             <a
               href={calendarUrl}
               target="_blank"
               rel="noreferrer"
-              className="text-sm font-medium text-blue-600 hover:underline"
+              className="inline-flex h-9 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
             >
+              <CalendarPlus className="mr-1.5 h-4 w-4" aria-hidden="true" />
               Add to Calendar
             </a>
             <DownloadTicketsButton />
