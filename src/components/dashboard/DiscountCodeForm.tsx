@@ -24,6 +24,7 @@ export function DiscountCodeForm({ title, submitLabel, action, initial }: Discou
   const [discountType, setDiscountType] = useState<DiscountType>(initial?.discountType || 'PERCENTAGE')
 
   const showValueField = discountType === 'PERCENTAGE' || discountType === 'FIXED_AMOUNT'
+  const showMaxUsesField = discountType !== 'INVOICE'
 
   return (
     <form action={action} className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
@@ -66,10 +67,12 @@ export function DiscountCodeForm({ title, submitLabel, action, initial }: Discou
             />
           </div>
         )}
-        <div>
-          <Label htmlFor={`${title}-maxUses`}>Max Uses</Label>
-          <Input id={`${title}-maxUses`} name="maxUses" type="number" min="1" defaultValue={initial?.maxUses ?? ''} />
-        </div>
+        {showMaxUsesField && (
+          <div>
+            <Label htmlFor={`${title}-maxUses`}>Max Uses</Label>
+            <Input id={`${title}-maxUses`} name="maxUses" type="number" min="1" defaultValue={initial?.maxUses ?? ''} />
+          </div>
+        )}
         <div>
           <Label htmlFor={`${title}-isActive`}>Status</Label>
           <select
