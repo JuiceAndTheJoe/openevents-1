@@ -1,5 +1,4 @@
 import { OrderStatus } from '@prisma/client'
-import { getTranslations } from 'next-intl/server'
 import { prisma } from '@/lib/db'
 import { requireOrganizerProfile } from '@/lib/dashboard/organizer'
 import { DashboardStats } from '@/components/dashboard/DashboardStats'
@@ -12,7 +11,6 @@ import { getDashboardAnalytics } from '@/lib/analytics/dashboard-analytics'
 const revenueStatuses: OrderStatus[] = ['PAID', 'PENDING_INVOICE']
 
 export default async function DashboardHomePage() {
-  const t = await getTranslations('dashboard.home')
   const { organizerProfile } = await requireOrganizerProfile()
 
   const now = new Date()
@@ -83,9 +81,9 @@ export default async function DashboardHomePage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            {t('welcome', { name: organizerProfile.orgName })}
+            {`Welcome, ${organizerProfile.orgName}`}
           </h1>
-          <p className="text-gray-600">{t('subtitle')}</p>
+          <p className="text-gray-600">Overview of your events, orders, and revenue.</p>
         </div>
       </div>
 
@@ -103,15 +101,15 @@ export default async function DashboardHomePage() {
 
       {/* Analytics section */}
       <div>
-        <h2 className="mb-4 text-xl font-semibold text-gray-900">{t('analyticsTitle')}</h2>
+        <h2 className="mb-4 text-xl font-semibold text-gray-900">Analytics</h2>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <SalesChart
-            title={t('topEvents')}
+            title="Top Events by Revenue"
             data={analytics.topEvents.map((e) => ({ label: e.title, value: e.revenue }))}
           />
           <SalesTrendChart
-            title={t('salesTrend')}
-            noDataText={t('noData')}
+            title="Sales Trend – Last 30 Days"
+            noDataText="No data yet."
             data={analytics.dailySales}
           />
         </div>
