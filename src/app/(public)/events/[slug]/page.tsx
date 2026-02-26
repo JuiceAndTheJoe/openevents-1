@@ -93,17 +93,62 @@ export default async function EventDetailsPage({ params, searchParams }: PagePro
     : null
 
   const displayTimeZone = isValidTimeZone(event.timezone) ? event.timezone : 'UTC'
-  const dateLabel = new Intl.DateTimeFormat('en', {
+  const startDateLabel = new Intl.DateTimeFormat('en', {
     month: 'long',
-    day: 'numeric',
     timeZone: displayTimeZone,
+    day: 'numeric',
   }).format(event.startDate)
-  const timeLabel = new Intl.DateTimeFormat('en', {
+  const endDateLabel = new Intl.DateTimeFormat('en', {
+    month: 'long',
+    timeZone: displayTimeZone,
+    day: 'numeric',
+  }).format(event.endDate)
+  const startTimeLabel = new Intl.DateTimeFormat('en', {
     hour: 'numeric',
     minute: '2-digit',
     timeZone: displayTimeZone,
     timeZoneName: 'short',
   }).format(event.startDate)
+  const endTimeLabel = new Intl.DateTimeFormat('en', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: displayTimeZone,
+    timeZoneName: 'short',
+  }).format(event.endDate)
+  const startDateShortLabel = new Intl.DateTimeFormat('en', {
+    month: 'long',
+    day: 'numeric',
+    timeZone: displayTimeZone,
+  }).format(event.startDate)
+  const endDateShortLabel = new Intl.DateTimeFormat('en', {
+    month: 'long',
+    day: 'numeric',
+    timeZone: displayTimeZone,
+  }).format(event.endDate)
+  const rightDateLabel = startDateShortLabel === endDateShortLabel
+    ? startDateShortLabel
+    : `${startDateShortLabel} - ${endDateShortLabel}`
+  const startTimeNoTz = new Intl.DateTimeFormat('en', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: displayTimeZone,
+  }).format(event.startDate)
+  const endTimeNoTz = new Intl.DateTimeFormat('en', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: displayTimeZone,
+  }).format(event.endDate)
+  const timeZoneLabel =
+    new Intl.DateTimeFormat('en', {
+      timeZone: displayTimeZone,
+      timeZoneName: 'short',
+    })
+      .formatToParts(event.startDate)
+      .find((part) => part.type === 'timeZoneName')
+      ?.value || ''
+  const rightTimeLabel = `${startTimeNoTz} - ${endTimeNoTz}${timeZoneLabel ? ` ${timeZoneLabel}` : ''}`
+  const startDateTimeLabel = `${startDateLabel} at ${startTimeLabel}`
+  const endDateTimeLabel = `${endDateLabel} at ${endTimeLabel}`
   const notice = firstQueryValue(query.notice)
   const noticeMessage = notice === 'created'
     ? 'Event created'
@@ -227,14 +272,25 @@ export default async function EventDetailsPage({ params, searchParams }: PagePro
                   </span>
                 </div>
               )}
-              <div className="flex items-center gap-[12px]">
-                <Calendar className="h-6 w-6 shrink-0 text-[#364153]" />
-                <span
-                  className="text-[18px] leading-7 text-[#364153]"
-                  style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
-                >
-                  {dateLabel} at {timeLabel}
-                </span>
+              <div className="flex flex-col gap-[10px]">
+                <div className="flex items-center gap-[12px]">
+                  <Calendar className="h-10 w-10 shrink-0 text-[#364153]" />
+                  <span
+                    className="text-[18px] leading-7 text-[#364153]"
+                    style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                  >
+                    Start: {startDateTimeLabel}
+                  </span>
+                </div>
+                <div className="flex items-center gap-[12px]">
+                  <Calendar className="h-10 w-10 shrink-0 text-[#364153]" />
+                  <span
+                    className="text-[18px] leading-7 text-[#364153]"
+                    style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                  >
+                    End: {endDateTimeLabel}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -260,20 +316,20 @@ export default async function EventDetailsPage({ params, searchParams }: PagePro
               {formattedMinPrice === null ? 'Free' : `From ${formattedMinPrice}`}
             </p>
 
-            {/* Date — 4px below price */}
+            {/* Start */}
             <p
               className="mt-1 text-[16px] leading-6 text-[#364153]"
               style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
             >
-              {dateLabel}
+              {rightDateLabel}
             </p>
 
-            {/* Time — directly below date, 0px gap */}
+            {/* End */}
             <p
               className="text-[16px] leading-6 text-[#364153]"
               style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
             >
-              {timeLabel}
+              {rightTimeLabel}
             </p>
 
             {/* Get tickets — 16px below time */}
