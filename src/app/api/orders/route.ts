@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
           if (discountCodeRecord.minCartAmount !== null) {
             const minQuantity = decimalToNumber(discountCodeRecord.minCartAmount)
             const totalApplicableQuantity = preparedOrder.items.reduce((sum, item) => {
-              if (appliesToAll || applicableTicketTypeIds.includes(item.ticketTypeId)) {
+              if (appliesToAll || discountApplicableTicketTypeIds.includes(item.ticketTypeId)) {
                 return sum + item.quantity
               }
               return sum
