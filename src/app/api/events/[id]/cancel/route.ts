@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { sendEventCancellationEmail } from '@/lib/email'
 import { lockTicketTypes } from '@/lib/orders'
+import { getDiscountUsageUnitsFromItems, releaseDiscountCodeUsage } from '@/lib/orders/discountUsage'
 import { isPayPalConfigured, processRefund } from '@/lib/payments'
 import { formatDateTime } from '@/lib/utils'
 
@@ -14,6 +15,21 @@ const cancelBodySchema = z.object({
 
 type RouteContext = {
   params: Promise<{ id: string }>
+}
+
+function errorResponse(
+  message: string,
+  status: number,
+  extra?: Record<string, unknown>
+) {
+  return NextResponse.json(
+    {
+      message,
+      error: message,
+      ...(extra ?? {}),
+    },
+    { status }
+  )
 }
 
 function appendNote(existing: string | null, note: string) {
@@ -61,12 +77,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const parsed = cancelBodySchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        {
-          error: 'Validation failed',
-          details: parsed.error.flatten().fieldErrors,
-        },
-        { status: 400 }
+      return errorResponse(
+        'Cancellation reason is invalid. Keep it between 1 and 1000 characters.',
+        400,
+        { details: parsed.error.flatten().fieldErrors }
       )
     }
 
@@ -81,26 +95,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     })
 
-    if (!event) {
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 })
-    }
+    if (!event) return errorResponse('Event not found.', 404)
 
     if (event.organizer.userId !== user.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return errorResponse('You do not have permission to cancel this event.', 403)
     }
 
     if (event.status === 'CANCELLED') {
-      return NextResponse.json(
-        { error: 'Event is already cancelled' },
-        { status: 400 }
-      )
+      return errorResponse('Event is already cancelled.', 400)
     }
 
     if (event.status === 'COMPLETED') {
-      return NextResponse.json(
-        { error: 'Completed events cannot be cancelled' },
-        { status: 400 }
-      )
+      return errorResponse('Completed events cannot be cancelled.', 400)
     }
 
     const cancelledAt = new Date()
@@ -247,19 +253,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
         for (const order of orders) {
           if (!order.discountCodeId) continue
-          await tx.discountCode.updateMany({
-            where: {
-              id: order.discountCodeId,
-              usedCount: {
-                gt: 0,
-              },
-            },
-            data: {
-              usedCount: {
-                decrement: 1,
-              },
-            },
-          })
+          const usageUnits = getDiscountUsageUnitsFromItems(order.items)
+          await releaseDiscountCodeUsage(tx, order.discountCodeId, usageUnits)
         }
 
         const cancelledEvent = await tx.event.update({
@@ -417,18 +412,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'Unauthorized') {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        return errorResponse('Unauthorized.', 401)
       }
 
       if (error.message.includes('Forbidden')) {
-        return NextResponse.json({ error: error.message }, { status: 403 })
+        return errorResponse(error.message, 403)
       }
     }
 
     console.error('Cancel event failed:', error)
-    return NextResponse.json(
-      { error: 'Failed to cancel event' },
-      { status: 500 }
+    return errorResponse(
+      'Could not cancel the event due to a system error. Please try again.',
+      500
     )
   }
 }

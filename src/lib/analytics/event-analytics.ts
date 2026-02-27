@@ -1,4 +1,3 @@
-import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { OrderStatus } from '@prisma/client'
 
@@ -61,11 +60,15 @@ async function fetchEventAnalytics(eventId: string): Promise<EventAnalytics> {
         where: {
           eventId,
           status: { in: revenueStatuses },
-          createdAt: { gte: thirtyDaysAgo },
+          OR: [
+            { paidAt: { gte: thirtyDaysAgo } },
+            { paidAt: null, createdAt: { gte: thirtyDaysAgo } },
+          ],
         },
         select: {
           totalAmount: true,
           createdAt: true,
+          paidAt: true,
           items: { select: { quantity: true } },
         },
       }),
@@ -94,28 +97,27 @@ async function fetchEventAnalytics(eventId: string): Promise<EventAnalytics> {
 
   const totalTicketsSold = ticketsByType.reduce((s, t) => s + t.sold, 0)
 
-  // Build 30-day trend maps (all days initialised to 0)
-  const revenueMap = new Map<string, number>()
-  const ticketsMap = new Map<string, number>()
+  // Build 30-day trend map (all days initialised to 0)
+  const dailyMap = new Map<string, { revenue: number; ticketsSold: number }>()
   for (let i = 29; i >= 0; i--) {
     const d = new Date(now)
     d.setDate(d.getDate() - i)
-    const key = d.toISOString().slice(0, 10)
-    revenueMap.set(key, 0)
-    ticketsMap.set(key, 0)
+    dailyMap.set(d.toISOString().slice(0, 10), { revenue: 0, ticketsSold: 0 })
   }
   for (const o of trendOrders) {
-    const day = o.createdAt.toISOString().slice(0, 10)
-    if (revenueMap.has(day)) {
-      revenueMap.set(day, (revenueMap.get(day) ?? 0) + Number(o.totalAmount.toString()))
-      const qty = o.items.reduce((s, item) => s + item.quantity, 0)
-      ticketsMap.set(day, (ticketsMap.get(day) ?? 0) + qty)
+    const saleDate = o.paidAt ?? o.createdAt
+    const day = saleDate.toISOString().slice(0, 10)
+    const dayStats = dailyMap.get(day)
+    if (dayStats) {
+      const orderTickets = o.items.reduce((sum, item) => sum + item.quantity, 0)
+      dayStats.revenue += Number(o.totalAmount.toString())
+      dayStats.ticketsSold += orderTickets
     }
   }
-  const dailySales = Array.from(revenueMap.keys()).map((date) => ({
+  const dailySales = Array.from(dailyMap.entries()).map(([date, stats]) => ({
     date,
-    revenue: revenueMap.get(date) ?? 0,
-    ticketsSold: ticketsMap.get(date) ?? 0,
+    revenue: stats.revenue,
+    ticketsSold: stats.ticketsSold,
   }))
 
   return {
@@ -135,9 +137,7 @@ async function fetchEventAnalytics(eventId: string): Promise<EventAnalytics> {
   }
 }
 
-// Cached for 5 minutes. Each unique eventId gets its own cache entry.
-export const getEventAnalytics = unstable_cache(
-  fetchEventAnalytics,
-  ['event-analytics'],
-  { revalidate: 300, tags: ['event-analytics'] },
-)
+// Keep sales trend live so organizers see newly paid orders immediately.
+export async function getEventAnalytics(eventId: string): Promise<EventAnalytics> {
+  return fetchEventAnalytics(eventId)
+}

@@ -3,16 +3,10 @@
 import { useState } from 'react'
 import { formatCurrency } from '@/lib/utils'
 
-type DataPoint = {
-  date: string
-  revenue: number
-  ticketsSold: number
-}
-
 type SalesTrendChartProps = {
   title: string
   noDataText: string
-  data: DataPoint[]
+  data: Array<{ date: string; revenue: number | string | null; ticketsSold?: number | string | null }>
   currency?: string
 }
 
@@ -59,15 +53,39 @@ function shortDate(iso: string): string {
   return `${months[parseInt(parts[1], 10) - 1]} ${parseInt(parts[2], 10)}`
 }
 
+function toRevenueValue(value: number | string | null): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+function toCountValue(value: number | string | null | undefined): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
 type View = 'daily' | 'weekly'
 
 export function SalesTrendChart({ title, noDataText, data, currency = 'SEK' }: SalesTrendChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [view, setView] = useState<View>('daily')
 
-  const visibleData = view === 'weekly' ? data.slice(-7) : data
+  const normalizedData = data.map((d) => ({
+    date: d.date,
+    revenue: toRevenueValue(d.revenue),
+    ticketsSold: toCountValue(d.ticketsSold),
+  }))
 
-  const hasData = data.some((d) => d.revenue > 0 || d.ticketsSold > 0)
+  const visibleData = view === 'weekly' ? normalizedData.slice(-7) : normalizedData
+
+  const hasData = normalizedData.some((d) => d.revenue > 0 || d.ticketsSold > 0)
 
   function handleViewChange(next: View) {
     setView(next)
