@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { EventStatus } from '@prisma/client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { EventStatusBadge } from '@/components/dashboard/EventStatusBadge'
 import { formatDateTime } from '@/lib/utils'
@@ -64,6 +65,7 @@ function parseUiActionError(payload: unknown, fallbackMessage: string): UiAction
 }
 
 export function EventsTable({ events }: EventsTableProps) {
+  const router = useRouter()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<UiActionError | null>(null)
 
@@ -89,7 +91,7 @@ export function EventsTable({ events }: EventsTableProps) {
         )
         return
       }
-      window.location.reload()
+      router.refresh()
     } catch (actionError) {
       console.error(`Failed to ${action} event`, actionError)
       setError({
@@ -121,7 +123,7 @@ export function EventsTable({ events }: EventsTableProps) {
         )
         return
       }
-      window.location.reload()
+      router.refresh()
     } catch (deleteError) {
       console.error('Failed to delete event', deleteError)
       setError({
