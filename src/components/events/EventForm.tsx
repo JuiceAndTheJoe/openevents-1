@@ -1397,7 +1397,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       if (window.confirm('Discard unsaved changes?')) {
         event.preventDefault()
         event.stopPropagation()
-        navigateAfterDiscard(() => {
+        navigateWithHistoryGuardCleanup(() => {
           if (destination.origin !== window.location.origin) {
             window.location.assign(destination.href)
             return
@@ -2460,7 +2460,9 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       cleanupObjectUrl('bottomImage')
 
       if (mode === 'create' && eventSlug) {
-        router.push(`/events/${eventSlug}?notice=created`)
+        navigateWithHistoryGuardCleanup(() => {
+          router.push(`/events/${eventSlug}?notice=created`)
+        })
         return
       }
 
@@ -2471,7 +2473,9 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       }
 
       if (eventId) {
-        router.push(`/dashboard/events/${eventId}/edit`)
+        navigateWithHistoryGuardCleanup(() => {
+          router.push(`/dashboard/events/${eventId}/edit`)
+        })
       } else {
         router.refresh()
       }
@@ -2519,7 +2523,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
     router.push('/dashboard/events')
   }
 
-  function navigateAfterDiscard(callback: () => void, options?: { keepBypassGuard?: boolean }) {
+  function navigateWithHistoryGuardCleanup(callback: () => void, options?: { keepBypassGuard?: boolean }) {
     const continueNavigation = () => {
       bypassNavigationGuardRef.current = true
       historyGuardActiveRef.current = false
@@ -2547,7 +2551,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       return
     }
 
-    navigateAfterDiscard(() => {
+    navigateWithHistoryGuardCleanup(() => {
       performCancelNavigation()
     })
   }
