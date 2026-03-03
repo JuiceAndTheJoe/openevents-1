@@ -780,10 +780,12 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
   const persistedPromoCodeIdsRef = useRef(
     new Set(initialPromoCodes.map((c) => c.id).filter((id): id is string => Boolean(id)))
   )
+  const initialSnapshotRef = useRef(buildSnapshot(initialFormState))
   const persistedSnapshotRef = useRef(initialPersistedSnapshot)
   const autosaveInFlightRef = useRef(false)
   const historyGuardActiveRef = useRef(false)
   const bypassNavigationGuardRef = useRef(false)
+  const pendingNavigationRef = useRef<{ type: 'push'; url: string } | { type: 'external'; url: string } | { type: 'popState' } | null>(null)
   const formRef = useRef(form)
   const speakerDraftsRef = useRef(speakerDrafts)
   const promoCodesRef = useRef(promoCodes)
@@ -1371,15 +1373,11 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
         return
       }
 
-      if (window.confirm('Discard unsaved changes?')) {
-        bypassNavigationGuardRef.current = true
-        historyGuardActiveRef.current = false
-        window.history.back()
-        return
-      }
-
+      // Re-push the guard state so we stay on the page while showing the dialog
       window.history.pushState(window.history.state, '', currentLocation)
       historyGuardActiveRef.current = true
+      pendingNavigationRef.current = { type: 'popState' }
+      setDiscardChangesConfirm(true)
     }
 
     const handleDocumentNavigation = (event: MouseEvent) => {
@@ -1403,24 +1401,13 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       const destination = new URL(link.href, window.location.href)
       if (destination.href === window.location.href) return
 
-      if (window.confirm('Discard unsaved changes?')) {
-        event.preventDefault()
-        event.stopPropagation()
-        navigateWithHistoryGuardCleanup(() => {
-          if (destination.origin !== window.location.origin) {
-            window.location.assign(destination.href)
-            return
-          }
-
-          router.push(`${destination.pathname}${destination.search}${destination.hash}`)
-        }, {
-          keepBypassGuard: destination.origin !== window.location.origin,
-        })
-        return
-      }
-
       event.preventDefault()
       event.stopPropagation()
+      pendingNavigationRef.current =
+        destination.origin !== window.location.origin
+          ? { type: 'external', url: destination.href }
+          : { type: 'push', url: `${destination.pathname}${destination.search}${destination.hash}` }
+      setDiscardChangesConfirm(true)
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -2534,6 +2521,33 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
 
   function doNavigateAway() {
     setDiscardChangesConfirm(false)
+    const pending = pendingNavigationRef.current
+    pendingNavigationRef.current = null
+
+    if (pending?.type === 'push') {
+      navigateWithHistoryGuardCleanup(() => {
+        router.push(pending.url)
+      })
+      return
+    }
+
+    if (pending?.type === 'external') {
+      navigateWithHistoryGuardCleanup(() => {
+        window.location.assign(pending.url)
+      }, { keepBypassGuard: true })
+      return
+    }
+
+    if (pending?.type === 'popState') {
+      bypassNavigationGuardRef.current = true
+      historyGuardActiveRef.current = false
+      window.history.go(-2)
+      window.setTimeout(() => {
+        bypassNavigationGuardRef.current = false
+      }, 0)
+      return
+    }
+
     performCancelNavigation()
   }
 
@@ -3995,7 +4009,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
 
       {isPublishedEvent ? (
         <div className="flex flex-wrap justify-end gap-3">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+          <Button type="button" variant="cancel" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button onClick={() => submit('save')} isLoading={isSubmitting} disabled={isSubmitting || isAutosaving}>
@@ -4008,7 +4022,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
             type="button"
             onClick={onCancel}
             disabled={isSubmitting}
-            className="h-[50px] w-[120px] rounded-[10px] bg-[#c8414e] text-white text-lg font-semibold hover:bg-[#b43944]"
+            className="h-[50px] w-[120px] rounded-[10px] bg-[#E5E7EB] text-[#4a5565] text-lg font-semibold hover:bg-[#D1D5DB]"
           >
             Cancel
           </Button>
@@ -4151,7 +4165,10 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
         description="You have unsaved changes. Leaving now will discard them."
         confirmLabel="Discard changes"
         onConfirm={doNavigateAway}
-        onClose={() => setDiscardChangesConfirm(false)}
+        onClose={() => {
+          pendingNavigationRef.current = null
+          setDiscardChangesConfirm(false)
+        }}
       />
     </div>
   )
