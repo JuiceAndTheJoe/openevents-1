@@ -1,7 +1,7 @@
 'use client'
 
 import Cropper, { Area } from 'react-easy-crop'
-import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, DragEvent, FocusEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, Image as ImageIcon, Plus, Trash2, Upload, User, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -94,6 +94,7 @@ type EventFormProps = {
 
 type FieldKey =
   | 'title'
+  | 'categoryIds'
   | 'description'
   | 'startDate'
   | 'endDate'
@@ -134,6 +135,82 @@ type SpeakerCropSession = {
   sourceUrl: string
   fileName: string
   mimeType: string
+}
+
+function buildTicketSnapshot(ticket: TicketTypeDraft) {
+  return {
+    id: ticket.id || '',
+    name: ticket.name.trim(),
+    price: ticket.price.trim(),
+    currency: normalizeTicketCurrency(ticket.currency),
+    capacity: ticket.capacity.trim(),
+  }
+}
+
+function buildSpeakerSnapshot(speakerDraft: SpeakerDraft) {
+  return {
+    speakerId: speakerDraft.speakerId || '',
+    name: speakerDraft.name.trim(),
+    title: speakerDraft.title.trim(),
+    organization: speakerDraft.organization.trim(),
+    publicUrl: speakerDraft.publicUrl || '',
+  }
+}
+
+function buildPromoCodeSnapshot(promoCode: PromoCodeDraft) {
+  return {
+    id: promoCode.id || '',
+    code: promoCode.code.trim().toUpperCase(),
+    discountValue: promoCode.discountValue.trim(),
+    ticketTypeId: promoCode.ticketTypeId || '',
+    maxUses: promoCode.maxUses.trim(),
+    minCartAmount: promoCode.minCartAmount.trim(),
+  }
+}
+
+function buildDraftStateSnapshot(form: EventFormData, speakerDrafts: SpeakerDraft[], promoCodes: PromoCodeDraft[]) {
+  const formSnapshot = JSON.parse(buildSnapshot(form)) as Record<string, unknown>
+
+  return JSON.stringify({
+    ...formSnapshot,
+    speakerDrafts: speakerDrafts.map((draft) => buildSpeakerSnapshot(draft)),
+    promoCodes: promoCodes.map((promoCode) => buildPromoCodeSnapshot(promoCode)),
+  })
+}
+
+function buildEventPayload(
+  form: EventFormData,
+  speakerDrafts: SpeakerDraft[],
+  startUtc: string,
+  endUtc: string
+) {
+  const safeTimezone = isValidTimeZone(form.timezone) ? form.timezone : 'UTC'
+  const validSpeakerDrafts = speakerDrafts.filter((draft) => draft.name.trim())
+
+  return {
+    ...form,
+    timezone: safeTimezone,
+    startDate: startUtc,
+    endDate: endUtc,
+    description: form.description || '',
+    descriptionHtml: undefined,
+    onlineUrl: form.onlineUrl?.trim() ? form.onlineUrl.trim() : null,
+    coverImage: form.coverImage || null,
+    bottomImage: form.bottomImage || null,
+    videoUrl: form.videoUrl || null,
+    speakerNames: validSpeakerDrafts.map((draft) => draft.name.trim()),
+    organizerNames: validSpeakerDrafts.map((draft) => draft.title),
+    sponsorNames: validSpeakerDrafts.map((draft) => draft.organization),
+    speakerPhotos: validSpeakerDrafts.map((draft) => draft.publicUrl),
+    categoryIds: form.categoryIds,
+    ticketTypes: undefined,
+    ticketTypeId: undefined,
+    ticketTypeName: undefined,
+    ticketPrice: undefined,
+    ticketCurrency: undefined,
+    ticketCapacity: undefined,
+    status: undefined,
+  }
 }
 
 // ── Date & Time picker helpers (module-level, never recreated) ────────────────
@@ -201,6 +278,7 @@ const allowedVideoMimeTypes = new Set(['video/mp4', 'video/webm', 'video/quickti
 
 const fieldOrder: FieldKey[] = [
   'title',
+  'categoryIds',
   'startDate',
   'endDate',
   'timezone',
@@ -334,7 +412,7 @@ function focusFieldById(id: string) {
     const element = document.getElementById(id)
     if (!element) return
     element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    if (element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement) {
+    if (element instanceof HTMLElement) {
       element.focus()
     }
   })
@@ -379,6 +457,109 @@ function loadTimezoneOptions(initialTimeZone: string) {
       initialTimeZone,
     ].filter(Boolean))
   )
+}
+
+type FieldValidationMode = 'blur' | 'submit-save' | 'submit-publish'
+
+function isValidUrl(value: string) {
+  try {
+    new URL(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function getFieldValidationMessage(key: FieldKey, currentForm: EventFormData, mode: FieldValidationMode): string | undefined {
+  const requireComplete = mode !== 'submit-save'
+  const timezone = isValidTimeZone(currentForm.timezone) ? currentForm.timezone : 'UTC'
+  const startUtc = dateTimeLocalInTimeZoneToUtcIso(currentForm.startDate, timezone)
+  const endUtc = dateTimeLocalInTimeZoneToUtcIso(currentForm.endDate, timezone)
+
+  switch (key) {
+    case 'title':
+      return currentForm.title?.trim() ? undefined : 'Enter an event title.'
+    case 'categoryIds':
+      if (mode === 'submit-save') return undefined
+      return currentForm.categoryIds?.length ? undefined : 'Select at least one category.'
+    case 'description':
+      if (mode === 'submit-save') return undefined
+      return currentForm.description?.trim() ? undefined : 'Add an event description.'
+    case 'startDate':
+      if (!currentForm.startDate?.trim()) return 'Set start date and time.'
+      return startUtc ? undefined : 'Use a valid start date and time.'
+    case 'endDate':
+      if (!currentForm.endDate?.trim()) return 'Set end date and time.'
+      if (!endUtc) return 'Use a valid end date and time.'
+      if (startUtc && new Date(endUtc) <= new Date(startUtc)) return 'End time must be after start time.'
+      return undefined
+    case 'timezone':
+      if (!currentForm.timezone?.trim()) return 'Select a timezone.'
+      return isValidTimeZone(currentForm.timezone) ? undefined : 'Select a valid IANA timezone.'
+    case 'venue':
+      if (!requireComplete || currentForm.locationType === 'ONLINE') return undefined
+      return currentForm.venue?.trim() ? undefined : 'Enter venue.'
+    case 'address':
+      if (!requireComplete || currentForm.locationType === 'ONLINE') return undefined
+      return currentForm.address?.trim() ? undefined : 'Enter address.'
+    case 'city':
+      if (!requireComplete || currentForm.locationType === 'ONLINE') return undefined
+      return currentForm.city?.trim() ? undefined : 'Enter city.'
+    case 'country':
+      if (!requireComplete || currentForm.locationType === 'ONLINE') return undefined
+      return currentForm.country?.trim() ? undefined : 'Enter country.'
+    case 'onlineUrl': {
+      const value = currentForm.onlineUrl?.trim() || ''
+      if (!value) {
+        if (requireComplete && (currentForm.locationType === 'ONLINE' || currentForm.locationType === 'HYBRID')) {
+          return 'Enter an online URL.'
+        }
+        return undefined
+      }
+      return isValidUrl(value) ? undefined : 'Enter a valid URL.'
+    }
+    case 'coverImage':
+    case 'bottomImage':
+    case 'videoUrl':
+      return undefined
+  }
+}
+
+function getTicketFieldValidationMessage(ticketTypes: TicketTypeDraft[], index: number, key: TicketTypeFieldKey): string | undefined {
+  const ticket = ticketTypes[index]
+  if (!ticket) return undefined
+
+  const hasInput = hasAnyTicketInput(ticket)
+  if (!hasInput) return undefined
+
+  if (key === 'name') {
+    const name = ticket.name.trim()
+    if (!name) return 'Enter ticket name.'
+
+    const duplicateCount = ticketTypes.filter((candidate) => candidate.name.trim().toLowerCase() === name.toLowerCase()).length
+    if (duplicateCount > 1) return 'Ticket names must be unique.'
+    return undefined
+  }
+
+  if (key === 'price') {
+    const price = parseTicketPrice(ticket.price)
+    return price === null || price < 0 ? 'Enter a valid price (0 or greater).' : undefined
+  }
+
+  if (key === 'currency') {
+    const currency = normalizeTicketCurrency(ticket.currency)
+    return isSupportedCurrency(currency) ? undefined : 'Select a supported currency.'
+  }
+
+  const capacityRaw = ticket.capacity.trim()
+  if (!capacityRaw) return undefined
+
+  const maxCapacity = Number(capacityRaw)
+  if (!Number.isInteger(maxCapacity) || maxCapacity < 1) {
+    return 'Enter a whole number greater than 0 or leave empty.'
+  }
+
+  return undefined
 }
 
 async function loadImage(src: string) {
@@ -444,13 +625,7 @@ function buildSnapshot(form: EventFormData) {
     country: form.country || '',
     postalCode: form.postalCode || '',
     onlineUrl: form.onlineUrl || '',
-    ticketTypes: (form.ticketTypes || []).map((ticket) => ({
-      id: ticket.id || '',
-      name: ticket.name.trim(),
-      price: ticket.price.trim(),
-      currency: normalizeTicketCurrency(ticket.currency),
-      capacity: ticket.capacity.trim(),
-    })),
+    ticketTypes: (form.ticketTypes || []).map((ticket) => buildTicketSnapshot(ticket)),
     speakerNames: form.speakerNames || '',
     organizerNames: form.organizerNames || '',
     sponsorNames: form.sponsorNames || '',
@@ -497,6 +672,21 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
     })]
   }, [mergedInitialData])
 
+  const initialSpeakerDrafts = useMemo<SpeakerDraft[]>(() =>
+    (initialSpeakers ?? []).map((speaker, index) => ({
+      key: `speaker-init-${index}`,
+      speakerId: speaker.id,
+      name: speaker.name,
+      title: speaker.title,
+      organization: speaker.organization,
+      originalFile: null,
+      croppedFile: null,
+      previewUrl: null,
+      publicUrl: speaker.photo,
+      isUploading: false,
+    })),
+  [initialSpeakers])
+
   const initialFormState = useMemo<EventFormData>(() => ({
     ...mergedInitialData,
     timezone: normalizedInitialTimezone,
@@ -507,7 +697,10 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
     ticketCurrency: normalizeTicketCurrency(mergedInitialData.ticketCurrency),
   }), [initialTicketTypes, mergedInitialData, normalizedInitialTimezone])
 
-  const initialSnapshotRef = useRef(buildSnapshot(initialFormState))
+  const initialPersistedSnapshot = useMemo(
+    () => buildDraftStateSnapshot(initialFormState, initialSpeakerDrafts, initialPromoCodes),
+    [initialFormState, initialPromoCodes, initialSpeakerDrafts]
+  )
 
   const [form, setForm] = useState<EventFormData>(initialFormState)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -521,7 +714,11 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
   const [isPreparingCrop, setIsPreparingCrop] = useState<ImageTargetField | null>(null)
   const [isApplyingCrop, setIsApplyingCrop] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  const [touchedFields, setTouchedFields] = useState<Partial<Record<FieldKey, boolean>>>({})
   const [ticketErrors, setTicketErrors] = useState<TicketTypeFieldErrors[]>(
+    initialTicketTypes.map(() => ({}))
+  )
+  const [touchedTicketFields, setTouchedTicketFields] = useState<Partial<Record<TicketTypeFieldKey, boolean>>[]>(
     initialTicketTypes.map(() => ({}))
   )
   const [generalErrors, setGeneralErrors] = useState<string[]>([])
@@ -529,6 +726,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
   const [isCategoryOpen, setIsCategoryOpen] = useState(false)
   const categoryDropdownRef = useRef<HTMLDivElement | null>(null)
+  const progressTrackerRef = useRef<HTMLElement | null>(null)
   const [isUnitOpen, setIsUnitOpen] = useState(false)
   const unitDropdownRef = useRef<HTMLDivElement | null>(null)
   const [openDateTimePanel, setOpenDateTimePanel] = useState<'startDate' | 'endDate' | 'startTime' | 'endTime' | null>(null)
@@ -546,20 +744,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
   const [cropZoom, setCropZoom] = useState(1)
   const [cropPixels, setCropPixels] = useState<Area | null>(null)
   const [activeDropTarget, setActiveDropTarget] = useState<ImageTargetField | null>(null)
-  const [speakerDrafts, setSpeakerDrafts] = useState<SpeakerDraft[]>(() =>
-    (initialSpeakers ?? []).map((s, i) => ({
-      key: `speaker-init-${i}`,
-      speakerId: s.id,
-      name: s.name,
-      title: s.title,
-      organization: s.organization,
-      originalFile: null,
-      croppedFile: null,
-      previewUrl: null,
-      publicUrl: s.photo,
-      isUploading: false,
-    }))
-  )
+  const [speakerDrafts, setSpeakerDrafts] = useState<SpeakerDraft[]>(initialSpeakerDrafts)
   const [speakerCropSession, setSpeakerCropSession] = useState<SpeakerCropSession | null>(null)
   const [speakerCropPosition, setSpeakerCropPosition] = useState({ x: 0, y: 0 })
   const [speakerCropZoom, setSpeakerCropZoom] = useState(1)
@@ -584,25 +769,206 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
   )
 
   const [promoCodes, setPromoCodes] = useState<PromoCodeDraft[]>(initialPromoCodes)
+  const [persistedSnapshot, setPersistedSnapshot] = useState(initialPersistedSnapshot)
+  const [isAutosaving, setIsAutosaving] = useState(false)
+  const [hasExplicitTimes, setHasExplicitTimes] = useState(() => ({
+    startDate: Boolean(initialFormState.startDate.split('T')[1]),
+    endDate: Boolean(initialFormState.endDate.split('T')[1]),
+  }))
+  const [isPrimaryProgressVisible, setIsPrimaryProgressVisible] = useState(true)
+  const [recentlyCompletedStep, setRecentlyCompletedStep] = useState<string | null>(null)
   const persistedPromoCodeIdsRef = useRef(
     new Set(initialPromoCodes.map((c) => c.id).filter((id): id is string => Boolean(id)))
   )
+  const persistedSnapshotRef = useRef(initialPersistedSnapshot)
+  const autosaveInFlightRef = useRef(false)
+  const historyGuardActiveRef = useRef(false)
+  const bypassNavigationGuardRef = useRef(false)
+  const formRef = useRef(form)
+  const speakerDraftsRef = useRef(speakerDrafts)
+  const promoCodesRef = useRef(promoCodes)
+  const isSubmittingRef = useRef(isSubmitting)
+  const currentDraftSnapshot = useMemo(
+    () => buildDraftStateSnapshot(form, speakerDrafts, promoCodes),
+    [form, promoCodes, speakerDrafts]
+  )
+  const hasUnsavedChanges = currentDraftSnapshot !== persistedSnapshot
+  const previousProgressStateRef = useRef<Record<string, boolean>>({})
 
   const timezoneOptions = useMemo(() => loadTimezoneOptions(normalizedInitialTimezone), [normalizedInitialTimezone])
 
-  const clearFieldError = (key: FieldKey) => {
+  const eventDetailsComplete =
+    !getFieldValidationMessage('title', form, 'submit-publish') &&
+    !getFieldValidationMessage('description', form, 'submit-publish') &&
+    (categories.length === 0 || !getFieldValidationMessage('categoryIds', form, 'submit-publish'))
+
+  const dateTimeComplete =
+    !getFieldValidationMessage('startDate', form, 'submit-publish') &&
+    !getFieldValidationMessage('endDate', form, 'submit-publish') &&
+    !getFieldValidationMessage('timezone', form, 'submit-publish') &&
+    hasExplicitTimes.startDate &&
+    hasExplicitTimes.endDate
+
+  const locationComplete =
+    !getFieldValidationMessage('venue', form, 'submit-publish') &&
+    !getFieldValidationMessage('address', form, 'submit-publish') &&
+    !getFieldValidationMessage('city', form, 'submit-publish') &&
+    !getFieldValidationMessage('country', form, 'submit-publish') &&
+    !getFieldValidationMessage('onlineUrl', form, 'submit-publish')
+
+  const ticketTypes = form.ticketTypes || []
+  const ticketTypeCount = ticketTypes.filter((ticket) => hasAnyTicketInput(ticket)).length
+  const ticketsComplete = ticketTypes.some((ticket, index) =>
+    hasAnyTicketInput(ticket) && ticketFieldOrder.every((field) => !getTicketFieldValidationMessage(ticketTypes, index, field))
+  )
+  const ticketTypeCountLabel = `${ticketTypeCount} ticket type${ticketTypeCount === 1 ? '' : 's'}`
+
+  const progressSteps = useMemo(() => [
+    {
+      label: 'Event Details',
+      description: 'Title, category, and description',
+      complete: eventDetailsComplete,
+      indicator: eventDetailsComplete ? '✓' : '1',
+      statusText: eventDetailsComplete ? 'Complete' : 'In progress',
+    },
+    {
+      label: 'Date & Time',
+      description: 'Schedule and timezone details',
+      complete: dateTimeComplete,
+      indicator: dateTimeComplete ? '✓' : '2',
+      statusText: dateTimeComplete ? 'Complete' : 'In progress',
+    },
+    {
+      label: 'Location',
+      description: 'Venue and online attendance details',
+      complete: locationComplete,
+      indicator: locationComplete ? '✓' : '3',
+      statusText: locationComplete ? 'Complete' : 'In progress',
+    },
+    {
+      label: 'Tickets',
+      description: 'At least one complete ticket type',
+      complete: ticketsComplete,
+      indicator: String(ticketTypeCount),
+      statusText: ticketTypeCountLabel,
+    },
+  ], [
+    dateTimeComplete,
+    eventDetailsComplete,
+    locationComplete,
+    ticketTypeCount,
+    ticketTypeCountLabel,
+    ticketsComplete,
+  ])
+  const completedStepCount = progressSteps.filter((step) => step.complete).length
+  const activeProgressStep = progressSteps.find((step) => !step.complete) || progressSteps[progressSteps.length - 1]
+  const stepsRemainingCount = progressSteps.filter((step) => !step.complete).length
+  const floatingProgressLabel = stepsRemainingCount === 0 ? 'Ready to publish' : activeProgressStep.label
+
+  const setFieldValidationState = (key: FieldKey, message?: string) => {
     setFieldErrors((current) => {
-      if (!current[key]) return current
-      const next = { ...current }
-      delete next[key]
-      return next
+      if (!message) {
+        if (!current[key]) return current
+        const next = { ...current }
+        delete next[key]
+        return next
+      }
+
+      if (current[key] === message) return current
+      return { ...current, [key]: message }
     })
   }
 
+  const clearFieldError = (key: FieldKey) => {
+    setFieldValidationState(key)
+  }
+
+  const markFieldTouched = (key: FieldKey) => {
+    setTouchedFields((current) => (current[key] ? current : { ...current, [key]: true }))
+  }
+
+  const validateField = (key: FieldKey, currentForm: EventFormData = form, mode: FieldValidationMode = 'blur') => {
+    setFieldValidationState(key, getFieldValidationMessage(key, currentForm, mode))
+  }
+
+  const validateFieldIfActive = (key: FieldKey, currentForm: EventFormData, mode: FieldValidationMode = 'blur') => {
+    if (!touchedFields[key] && !fieldErrors[key]) return
+    validateField(key, currentForm, mode)
+  }
+
+  const handleFieldBlur = (key: FieldKey) => {
+    markFieldTouched(key)
+    validateField(key)
+  }
+
+  const handleCompositeFieldBlur = (event: FocusEvent<HTMLElement>, key: FieldKey) => {
+    const relatedTarget = event.relatedTarget
+    if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) {
+      return
+    }
+
+    handleFieldBlur(key)
+  }
+
   const updateField = <K extends keyof EventFormData>(key: K, value: EventFormData[K]) => {
-    setForm((current) => ({ ...current, [key]: value }))
-    if (key in fieldErrors) {
-      clearFieldError(key as FieldKey)
+    const nextForm = { ...form, [key]: value }
+    setForm(nextForm)
+
+    if (key === 'title') {
+      validateFieldIfActive('title', nextForm)
+      return
+    }
+
+    if (key === 'categoryIds') {
+      validateFieldIfActive('categoryIds', nextForm)
+      return
+    }
+
+    if (key === 'description') {
+      validateFieldIfActive('description', nextForm)
+      return
+    }
+
+    if (key === 'startDate') {
+      validateFieldIfActive('startDate', nextForm)
+      validateFieldIfActive('endDate', nextForm)
+      return
+    }
+
+    if (key === 'endDate') {
+      validateFieldIfActive('endDate', nextForm)
+      return
+    }
+
+    if (key === 'timezone') {
+      validateFieldIfActive('timezone', nextForm)
+      validateFieldIfActive('startDate', nextForm)
+      validateFieldIfActive('endDate', nextForm)
+      return
+    }
+
+    if (key === 'locationType') {
+      validateFieldIfActive('venue', nextForm)
+      validateFieldIfActive('address', nextForm)
+      validateFieldIfActive('city', nextForm)
+      validateFieldIfActive('country', nextForm)
+      validateFieldIfActive('onlineUrl', nextForm)
+      return
+    }
+
+    if (
+      key === 'venue' ||
+      key === 'address' ||
+      key === 'city' ||
+      key === 'country' ||
+      key === 'onlineUrl'
+    ) {
+      validateFieldIfActive(key, nextForm)
+      return
+    }
+
+    if (key === 'coverImage' || key === 'bottomImage' || key === 'videoUrl') {
+      clearFieldError(key)
     }
   }
 
@@ -618,7 +984,10 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
 
   const updateTimePart = (field: 'startDate' | 'endDate', timePart: string) => {
     const datePart = getDatePart(form[field])
-    if (datePart) updateField(field, `${datePart}T${timePart}`)
+    if (datePart) {
+      updateField(field, `${datePart}T${timePart}`)
+      setHasExplicitTimes((current) => ({ ...current, [field]: true }))
+    }
   }
 
   const updateHourPart = (field: 'startDate' | 'endDate', hour: string) => {
@@ -674,31 +1043,89 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  const clearTicketError = (index: number, key: TicketTypeFieldKey) => {
+  const setTicketFieldValidationState = (index: number, key: TicketTypeFieldKey, message?: string) => {
     setTicketErrors((current) => {
-      if (!current[index]?.[key]) return current
       const next = current.map((errors) => ({ ...errors }))
-      delete next[index][key]
+      const row = next[index] || {}
+
+      if (!message) {
+        if (!row[key]) return current
+        delete row[key]
+        next[index] = row
+        return next
+      }
+
+      if (row[key] === message) return current
+      row[key] = message
+      next[index] = row
       return next
     })
   }
 
-  const updateTicketTypeField = (index: number, key: TicketTypeFieldKey, value: string) => {
-    setForm((current) => {
-      const nextTicketTypes = [...(current.ticketTypes || [])]
-      if (!nextTicketTypes[index]) return current
-
-      nextTicketTypes[index] = {
-        ...nextTicketTypes[index],
-        [key]: key === 'currency' ? normalizeTicketCurrency(value) : value,
-      }
-
-      return {
-        ...current,
-        ticketTypes: nextTicketTypes,
-      }
+  const markTicketFieldTouched = (index: number, key: TicketTypeFieldKey) => {
+    setTouchedTicketFields((current) => {
+      const next = current.map((touched) => ({ ...touched }))
+      const row = next[index] || {}
+      if (row[key]) return current
+      row[key] = true
+      next[index] = row
+      return next
     })
-    clearTicketError(index, key)
+  }
+
+  const validateTicketField = (index: number, key: TicketTypeFieldKey, ticketTypes: TicketTypeDraft[] = form.ticketTypes || []) => {
+    setTicketFieldValidationState(index, key, getTicketFieldValidationMessage(ticketTypes, index, key))
+  }
+
+  const validateTicketFieldIfActive = (index: number, key: TicketTypeFieldKey, ticketTypes: TicketTypeDraft[]) => {
+    if (!touchedTicketFields[index]?.[key] && !ticketErrors[index]?.[key]) return
+    validateTicketField(index, key, ticketTypes)
+  }
+
+  const syncTicketNameValidation = (ticketTypes: TicketTypeDraft[]) => {
+    setTicketErrors((current) =>
+      current.map((errors, index) => {
+        if (!touchedTicketFields[index]?.name && !errors.name) {
+          return errors
+        }
+
+        const nextErrors = { ...errors }
+        const message = getTicketFieldValidationMessage(ticketTypes, index, 'name')
+        if (message) {
+          nextErrors.name = message
+        } else {
+          delete nextErrors.name
+        }
+        return nextErrors
+      })
+    )
+  }
+
+  const handleTicketFieldBlur = (index: number, key: TicketTypeFieldKey) => {
+    markTicketFieldTouched(index, key)
+    validateTicketField(index, key)
+  }
+
+  const updateTicketTypeField = (index: number, key: TicketTypeFieldKey, value: string) => {
+    const nextTicketTypes = [...(form.ticketTypes || [])]
+    if (!nextTicketTypes[index]) return
+
+    nextTicketTypes[index] = {
+      ...nextTicketTypes[index],
+      [key]: key === 'currency' ? normalizeTicketCurrency(value) : value,
+    }
+
+    setForm((current) => ({
+      ...current,
+      ticketTypes: nextTicketTypes,
+    }))
+
+    if (key === 'name') {
+      syncTicketNameValidation(nextTicketTypes)
+      return
+    }
+
+    validateTicketFieldIfActive(index, key, nextTicketTypes)
   }
 
   const addTicketType = () => {
@@ -707,6 +1134,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       ticketTypes: [...(current.ticketTypes || []), createEmptyTicketType()],
     }))
     setTicketErrors((current) => [...current, {}])
+    setTouchedTicketFields((current) => [...current, {}])
     setSubmitError(null)
   }
 
@@ -729,6 +1157,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
     }))
     setTicketErrors((current) => current.filter((_, ticketIndex) => ticketIndex !== index))
     setRemoveTicketConfirm(null)
+    setTouchedTicketFields((current) => current.filter((_, ticketIndex) => ticketIndex !== index))
   }
 
   const addPromoCode = () => {
@@ -797,6 +1226,52 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
   }, [])
 
   useEffect(() => {
+    const currentProgressState = Object.fromEntries(
+      progressSteps.map((step) => [step.label, step.complete])
+    ) as Record<string, boolean>
+    const previousProgressState = previousProgressStateRef.current
+
+    if (Object.keys(previousProgressState).length === 0) {
+      previousProgressStateRef.current = currentProgressState
+      return
+    }
+
+    const newlyCompletedStep = progressSteps.find((step) => step.complete && !previousProgressState[step.label])
+    previousProgressStateRef.current = currentProgressState
+
+    if (!newlyCompletedStep) return
+
+    const feedbackMessage = `${newlyCompletedStep.label} complete`
+    setRecentlyCompletedStep(feedbackMessage)
+
+    const timeoutId = window.setTimeout(() => {
+      setRecentlyCompletedStep((current) => (current === feedbackMessage ? null : current))
+    }, 3200)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [dateTimeComplete, eventDetailsComplete, locationComplete, progressSteps, ticketsComplete])
+
+  useEffect(() => {
+    const progressTrackerElement = progressTrackerRef.current
+    if (!progressTrackerElement || typeof IntersectionObserver === 'undefined') {
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsPrimaryProgressVisible(entry.isIntersecting)
+      },
+      {
+        threshold: 0,
+      }
+    )
+
+    observer.observe(progressTrackerElement)
+
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
     if (!isCategoryOpen) return
     function handleClickOutside(event: MouseEvent) {
       if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
@@ -830,6 +1305,8 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
   }, [openDateTimePanel])
 
   useEffect(() => {
+    const speakerPreviewUrls = speakerPreviewUrlsRef.current
+
     return () => {
       if (bannerObjectUrlRef.current) {
         URL.revokeObjectURL(bannerObjectUrlRef.current)
@@ -846,11 +1323,213 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       if (speakerCropObjectUrlRef.current) {
         URL.revokeObjectURL(speakerCropObjectUrlRef.current)
       }
-      for (const url of speakerPreviewUrlsRef.current.values()) {
+      for (const url of speakerPreviewUrls.values()) {
         URL.revokeObjectURL(url)
       }
     }
   }, [])
+
+  useEffect(() => {
+    formRef.current = form
+  }, [form])
+
+  useEffect(() => {
+    speakerDraftsRef.current = speakerDrafts
+  }, [speakerDrafts])
+
+  useEffect(() => {
+    promoCodesRef.current = promoCodes
+  }, [promoCodes])
+
+  useEffect(() => {
+    isSubmittingRef.current = isSubmitting
+  }, [isSubmitting])
+
+  useEffect(() => {
+    persistedSnapshotRef.current = persistedSnapshot
+  }, [persistedSnapshot])
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return
+
+    const currentLocation = `${window.location.pathname}${window.location.search}${window.location.hash}`
+
+    if (!historyGuardActiveRef.current) {
+      window.history.pushState(window.history.state, '', currentLocation)
+      historyGuardActiveRef.current = true
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (bypassNavigationGuardRef.current) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    const handlePopState = () => {
+      if (bypassNavigationGuardRef.current) {
+        bypassNavigationGuardRef.current = false
+        return
+      }
+
+      if (window.confirm('Discard unsaved changes?')) {
+        bypassNavigationGuardRef.current = true
+        historyGuardActiveRef.current = false
+        window.history.back()
+        return
+      }
+
+      window.history.pushState(window.history.state, '', currentLocation)
+      historyGuardActiveRef.current = true
+    }
+
+    const handleDocumentNavigation = (event: MouseEvent) => {
+      if (bypassNavigationGuardRef.current) return
+      if (event.defaultPrevented || event.button !== 0) return
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+
+      const target = event.target
+      if (!(target instanceof Element)) return
+
+      const link = target.closest('a[href]')
+      if (!(link instanceof HTMLAnchorElement)) return
+      if (link.target && link.target !== '_self') return
+      if (link.hasAttribute('download')) return
+
+      const href = link.getAttribute('href')
+      if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) {
+        return
+      }
+
+      const destination = new URL(link.href, window.location.href)
+      if (destination.href === window.location.href) return
+
+      if (window.confirm('Discard unsaved changes?')) {
+        event.preventDefault()
+        event.stopPropagation()
+        navigateWithHistoryGuardCleanup(() => {
+          if (destination.origin !== window.location.origin) {
+            window.location.assign(destination.href)
+            return
+          }
+
+          router.push(`${destination.pathname}${destination.search}${destination.hash}`)
+        }, {
+          keepBypassGuard: destination.origin !== window.location.origin,
+        })
+        return
+      }
+
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('popstate', handlePopState)
+    document.addEventListener('click', handleDocumentNavigation, true)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('popstate', handlePopState)
+      document.removeEventListener('click', handleDocumentNavigation, true)
+
+      if (historyGuardActiveRef.current) {
+        bypassNavigationGuardRef.current = true
+        historyGuardActiveRef.current = false
+        window.history.back()
+        window.setTimeout(() => {
+          bypassNavigationGuardRef.current = false
+        }, 0)
+      }
+    }
+  }, [hasUnsavedChanges, router])
+
+  useEffect(() => {
+    if (mode !== 'edit' || !form.id) return
+
+    const intervalId = window.setInterval(() => {
+      if (autosaveInFlightRef.current || isSubmittingRef.current) {
+        return
+      }
+
+      if (persistedSnapshotRef.current === buildDraftStateSnapshot(formRef.current, speakerDraftsRef.current, promoCodesRef.current)) {
+        return
+      }
+
+      const currentForm = formRef.current
+      const currentSpeakerDrafts = speakerDraftsRef.current
+      const currentPromoCodes = promoCodesRef.current
+      const currentTicketTypes = currentForm.ticketTypes || []
+
+      if (!currentForm.id || !currentForm.title.trim()) return
+      if (isUploadingBanner || isUploadingBottom || isUploadingVideo || isPreparingCrop || isApplyingCrop || isApplyingSpeakerCrop) return
+      if (currentSpeakerDrafts.some((draft) => draft.isUploading)) return
+
+      const timezone = isValidTimeZone(currentForm.timezone) ? currentForm.timezone : 'UTC'
+      const startUtc = dateTimeLocalInTimeZoneToUtcIso(currentForm.startDate, timezone)
+      const endUtc = dateTimeLocalInTimeZoneToUtcIso(currentForm.endDate, timezone)
+
+      if (!startUtc || !endUtc || new Date(endUtc) <= new Date(startUtc)) return
+
+      const onlineUrl = currentForm.onlineUrl?.trim() || ''
+      if (onlineUrl && !isValidUrl(onlineUrl)) return
+
+      const hasInvalidTickets = currentTicketTypes.some((ticket, index) =>
+        hasAnyTicketInput(ticket) && ticketFieldOrder.some((field) => Boolean(getTicketFieldValidationMessage(currentTicketTypes, index, field)))
+      )
+
+      if (hasInvalidTickets) return
+
+      const eventSnapshot = buildDraftStateSnapshot(currentForm, currentSpeakerDrafts, currentPromoCodes)
+      const payload = buildEventPayload(currentForm, currentSpeakerDrafts, startUtc, endUtc)
+
+      autosaveInFlightRef.current = true
+      setIsAutosaving(true)
+
+      void (async () => {
+        try {
+          const eventRes = await fetch(`/api/events/${currentForm.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+
+          if (!eventRes.ok) {
+            return
+          }
+
+          const savedTicketTypes = await syncTicketTypes(currentForm.id!, 'save', currentTicketTypes)
+          const savedPromoCodes = await syncPromoCodes(currentForm.id!, savedTicketTypes ?? [], currentPromoCodes)
+          const savedSnapshot = buildDraftStateSnapshot(
+            { ...currentForm, ticketTypes: savedTicketTypes },
+            currentSpeakerDrafts,
+            savedPromoCodes
+          )
+
+          if (persistedSnapshotRef.current !== eventSnapshot) {
+            persistedSnapshotRef.current = savedSnapshot
+            setPersistedSnapshot(savedSnapshot)
+          }
+        } catch {
+          // Keep autosave failures non-blocking.
+        } finally {
+          autosaveInFlightRef.current = false
+          setIsAutosaving(false)
+        }
+      })()
+    }, 30000)
+
+    return () => window.clearInterval(intervalId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    form.id,
+    isApplyingCrop,
+    isApplyingSpeakerCrop,
+    isPreparingCrop,
+    isUploadingBanner,
+    isUploadingBottom,
+    isUploadingVideo,
+    mode,
+  ])
 
   function openCropper(file: File, targetField: ImageTargetField) {
     cleanupCropObjectUrl()
@@ -945,9 +1624,13 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
     return nextErrors
   }
 
-  async function syncTicketTypes(eventId: string, action: 'save' | 'publish') {
+  async function syncTicketTypes(
+    eventId: string,
+    action: 'save' | 'publish',
+    ticketTypesInput: TicketTypeDraft[] = form.ticketTypes || []
+  ) {
     const requireComplete = action === 'publish'
-    const ticketTypes = form.ticketTypes || []
+    const ticketTypes = ticketTypesInput
     const ticketTypeIdsInForm = new Set(
       ticketTypes.map((ticket) => ticket.id).filter((ticketId): ticketId is string => Boolean(ticketId))
     )
@@ -1024,14 +1707,37 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
     }
 
     persistedTicketTypeIdsRef.current = nextPersistedIds
-    setForm((current) => ({
-      ...current,
-      ticketTypes: nextTicketTypes,
-    }))
+    setForm((current) => {
+      const currentTicketTypes = current.ticketTypes || []
+
+      return {
+        ...current,
+        ticketTypes: currentTicketTypes.map((ticket, index) => {
+          const savedTicket = nextTicketTypes[index]
+          const originalTicket = ticketTypes[index]
+
+          if (!savedTicket?.id || ticket.id || !originalTicket) {
+            return ticket
+          }
+
+          const matchesSavedDraft =
+            buildTicketSnapshot(ticket).name === buildTicketSnapshot(originalTicket).name &&
+            buildTicketSnapshot(ticket).price === buildTicketSnapshot(originalTicket).price &&
+            buildTicketSnapshot(ticket).currency === buildTicketSnapshot(originalTicket).currency &&
+            buildTicketSnapshot(ticket).capacity === buildTicketSnapshot(originalTicket).capacity
+
+          return matchesSavedDraft ? { ...ticket, id: savedTicket.id } : ticket
+        }),
+      }
+    })
     return nextTicketTypes
   }
 
-  async function syncPromoCodes(eventId: string, savedTicketTypes: TicketTypeDraft[]) {
+  async function syncPromoCodes(
+    eventId: string,
+    savedTicketTypes: TicketTypeDraft[],
+    promoCodesInput: PromoCodeDraft[] = promoCodes
+  ) {
     // Build a map from temp index-based IDs ("ticket-0") to real IDs, for create mode
     const tempToRealIdMap = new Map<string, string>()
     savedTicketTypes.forEach((t, i) => {
@@ -1039,7 +1745,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
     })
 
     const promoCodeIdsInForm = new Set(
-      promoCodes.map((c) => c.id).filter((id): id is string => Boolean(id))
+      promoCodesInput.map((c) => c.id).filter((id): id is string => Boolean(id))
     )
     const idsToDelete = Array.from(persistedPromoCodeIdsRef.current).filter(
       (id) => !promoCodeIdsInForm.has(id)
@@ -1055,10 +1761,10 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       }
     }
 
-    const nextPromoCodes = [...promoCodes]
+    const nextPromoCodes = [...promoCodesInput]
 
-    for (let index = 0; index < promoCodes.length; index += 1) {
-      const promoCode = promoCodes[index]
+    for (let index = 0; index < promoCodesInput.length; index += 1) {
+      const promoCode = promoCodesInput[index]
       if (!promoCode.code.trim() || !promoCode.discountValue.trim() || !promoCode.ticketTypeId) {
         continue
       }
@@ -1104,6 +1810,11 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
         throw new Error((json?.error as string | undefined) || 'Failed to save promo code')
       }
 
+      nextPromoCodes[index] = {
+        ...nextPromoCodes[index],
+        ticketTypeId: resolvedTicketTypeId,
+      }
+
       if (!isExisting && json?.discountCode?.id) {
         nextPromoCodes[index] = { ...nextPromoCodes[index], id: json.discountCode.id as string }
       }
@@ -1112,7 +1823,34 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
     persistedPromoCodeIdsRef.current = new Set(
       nextPromoCodes.map((c) => c.id).filter((id): id is string => Boolean(id))
     )
-    setPromoCodes(nextPromoCodes)
+    setPromoCodes((current) =>
+      current.map((promoCode, index) => {
+        const savedPromoCode = nextPromoCodes[index]
+        const originalPromoCode = promoCodesInput[index]
+
+        if (!savedPromoCode || !originalPromoCode) {
+          return promoCode
+        }
+
+        const matchesSavedDraft =
+          buildPromoCodeSnapshot(promoCode).code === buildPromoCodeSnapshot(originalPromoCode).code &&
+          buildPromoCodeSnapshot(promoCode).discountValue === buildPromoCodeSnapshot(originalPromoCode).discountValue &&
+          buildPromoCodeSnapshot(promoCode).ticketTypeId === buildPromoCodeSnapshot(originalPromoCode).ticketTypeId &&
+          buildPromoCodeSnapshot(promoCode).maxUses === buildPromoCodeSnapshot(originalPromoCode).maxUses &&
+          buildPromoCodeSnapshot(promoCode).minCartAmount === buildPromoCodeSnapshot(originalPromoCode).minCartAmount
+
+        if (!matchesSavedDraft) {
+          return promoCode
+        }
+
+        return {
+          ...promoCode,
+          id: savedPromoCode.id || promoCode.id,
+          ticketTypeId: savedPromoCode.ticketTypeId || promoCode.ticketTypeId,
+        }
+      })
+    )
+    return nextPromoCodes
   }
 
   function validate(action: 'save' | 'publish') {
@@ -1120,94 +1858,44 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
     const nextTicketErrors: TicketTypeFieldErrors[] = (form.ticketTypes || []).map(() => ({}))
     const nextGeneralErrors: string[] = []
     const requireComplete = action === 'publish'
+    const fieldValidationMode: FieldValidationMode = requireComplete ? 'submit-publish' : 'submit-save'
 
     const timezone = isValidTimeZone(form.timezone) ? form.timezone : 'UTC'
     const startUtc = dateTimeLocalInTimeZoneToUtcIso(form.startDate, timezone)
     const endUtc = dateTimeLocalInTimeZoneToUtcIso(form.endDate, timezone)
 
-    if (!form.title?.trim()) nextFieldErrors.title = 'Enter an event title.'
+    for (const key of fieldOrder) {
+      if (key === 'categoryIds' && categories.length === 0) {
+        continue
+      }
 
-    if (!form.startDate?.trim()) {
-      nextFieldErrors.startDate = 'Set start date and time.'
-    } else if (!startUtc) {
-      nextFieldErrors.startDate = 'Use a valid start date and time.'
-    }
-
-    if (!form.endDate?.trim()) {
-      nextFieldErrors.endDate = 'Set end date and time.'
-    } else if (!endUtc) {
-      nextFieldErrors.endDate = 'Use a valid end date and time.'
-    }
-
-    if (!form.timezone?.trim()) {
-      nextFieldErrors.timezone = 'Select a timezone.'
-    } else if (!isValidTimeZone(form.timezone)) {
-      nextFieldErrors.timezone = 'Select a valid IANA timezone.'
-    }
-
-    if (startUtc && endUtc && new Date(endUtc) <= new Date(startUtc)) {
-      nextFieldErrors.endDate = 'End time must be after start time.'
-    }
-
-    if (requireComplete && form.locationType !== 'ONLINE') {
-      if (!form.venue?.trim()) nextFieldErrors.venue = 'Enter venue.'
-      if (!form.address?.trim()) nextFieldErrors.address = 'Enter address.'
-      if (!form.city?.trim()) nextFieldErrors.city = 'Enter city.'
-      if (!form.country?.trim()) nextFieldErrors.country = 'Enter country.'
-    }
-
-    if (
-      requireComplete &&
-      (form.locationType === 'ONLINE' || form.locationType === 'HYBRID') &&
-      !form.onlineUrl?.trim()
-    ) {
-      nextFieldErrors.onlineUrl = 'Enter an online URL.'
-    }
-
-    if (requireComplete && !form.description?.trim()) {
-      nextFieldErrors.description = 'Add an event description.'
+      const message = getFieldValidationMessage(key, form, fieldValidationMode)
+      if (message) {
+        nextFieldErrors[key] = message
+      }
     }
 
     const ticketTypes = form.ticketTypes || []
-    const seenTicketNames = new Map<string, number[]>()
     let hasPublishableTicketType = false
 
     for (let index = 0; index < ticketTypes.length; index += 1) {
       const ticket = ticketTypes[index]
       const rowErrors = nextTicketErrors[index]
-      const name = ticket.name.trim()
-      const price = parseTicketPrice(ticket.price)
-      const currency = normalizeTicketCurrency(ticket.currency)
-      const capacityRaw = ticket.capacity.trim()
-      const maxCapacity = capacityRaw ? Number(capacityRaw) : null
       const hasInput = hasAnyTicketInput(ticket)
 
       if (!requireComplete && !hasInput) {
         continue
       }
 
-      if (!name) rowErrors.name = 'Enter ticket name.'
-      if (price === null || price < 0) rowErrors.price = 'Enter a valid price (0 or greater).'
-      if (!isSupportedCurrency(currency)) rowErrors.currency = 'Select a supported currency.'
-      if (maxCapacity !== null && (!Number.isInteger(maxCapacity) || maxCapacity < 1)) {
-        rowErrors.capacity = 'Enter a whole number greater than 0 or leave empty.'
-      }
-
-      if (name) {
-        const normalizedName = name.toLowerCase()
-        const existingIndexes = seenTicketNames.get(normalizedName) || []
-        seenTicketNames.set(normalizedName, [...existingIndexes, index])
+      for (const ticketField of ticketFieldOrder) {
+        const message = getTicketFieldValidationMessage(ticketTypes, index, ticketField)
+        if (message) {
+          rowErrors[ticketField] = message
+        }
       }
 
       if (Object.keys(rowErrors).length === 0 && hasInput) {
         hasPublishableTicketType = true
-      }
-    }
-
-    for (const duplicateIndexes of seenTicketNames.values()) {
-      if (duplicateIndexes.length < 2) continue
-      for (const index of duplicateIndexes) {
-        nextTicketErrors[index].name = 'Ticket names must be unique.'
       }
     }
 
@@ -1240,6 +1928,19 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       startUtc,
       endUtc,
     }
+  }
+
+  function focusFirstInvalidControl(fieldErrors: FieldErrors, ticketErrors: TicketTypeFieldErrors[]) {
+    const firstField = fieldOrder.find((key) => Boolean(fieldErrors[key]))
+    if (firstField === 'categoryIds') {
+      setIsCategoryOpen(true)
+    } else if (firstField === 'startDate') {
+      setOpenDateTimePanel('startDate')
+    } else if (firstField === 'endDate') {
+      setOpenDateTimePanel('endDate')
+    }
+
+    focusFirstInvalidField(fieldErrors, ticketErrors)
   }
 
   async function ensureCropSourceFile(targetField: ImageTargetField, fallbackImageSrc: string | null) {
@@ -1691,14 +2392,13 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
 
     if (shouldBlockSubmit) {
       setGeneralErrors(validationResult.generalErrors)
-      focusFirstInvalidField(validationResult.fieldErrors, validationResult.ticketErrors)
+      focusFirstInvalidControl(validationResult.fieldErrors, validationResult.ticketErrors)
       return
     }
 
     setIsSubmitting(true)
 
     try {
-      const safeTimezone = isValidTimeZone(form.timezone) ? form.timezone : 'UTC'
       const startUtc = validationResult.startUtc
       const endUtc = validationResult.endUtc
 
@@ -1706,31 +2406,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
         throw new Error('Start and end dates are required')
       }
 
-      const validSpeakerDrafts = speakerDrafts.filter((d) => d.name.trim())
-      const payload = {
-        ...form,
-        timezone: safeTimezone,
-        startDate: startUtc,
-        endDate: endUtc,
-        description: form.description || '',
-        descriptionHtml: undefined,
-        onlineUrl: form.onlineUrl || null,
-        coverImage: form.coverImage || null,
-        bottomImage: form.bottomImage || null,
-        videoUrl: form.videoUrl || null,
-        speakerNames: validSpeakerDrafts.map((d) => d.name.trim()),
-        organizerNames: validSpeakerDrafts.map((d) => d.title),
-        sponsorNames: validSpeakerDrafts.map((d) => d.organization),
-        speakerPhotos: validSpeakerDrafts.map((d) => d.publicUrl),
-        categoryIds: form.categoryIds,
-        ticketTypes: undefined,
-        ticketTypeId: undefined,
-        ticketTypeName: undefined,
-        ticketPrice: undefined,
-        ticketCurrency: undefined,
-        ticketCapacity: undefined,
-        status: undefined,
-      }
+      const payload = buildEventPayload(form, speakerDrafts, startUtc, endUtc)
 
       const endpoint = mode === 'create' ? '/api/events' : `/api/events/${form.id}`
       const method = mode === 'create' ? 'POST' : 'PATCH'
@@ -1746,7 +2422,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
         const apiFieldErrors = parseApiValidationErrors(eventJson?.details)
         if (Object.keys(apiFieldErrors).length > 0) {
           setFieldErrors(apiFieldErrors)
-          focusFirstInvalidField(apiFieldErrors, [])
+          focusFirstInvalidControl(apiFieldErrors, [])
         }
 
         throw new Error(eventJson?.error || 'Failed to save event')
@@ -1755,9 +2431,22 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       const eventId = eventJson?.data?.id || form.id
       const eventSlug = (eventJson?.data?.slug as string | undefined) || form.slug
 
+      let savedTicketTypes = form.ticketTypes || []
+      let savedPromoCodes = promoCodes
+
       if (eventId) {
-        const savedTicketTypes = await syncTicketTypes(eventId, action)
-        await syncPromoCodes(eventId, savedTicketTypes ?? [])
+        savedTicketTypes = await syncTicketTypes(eventId, action)
+        savedPromoCodes = await syncPromoCodes(eventId, savedTicketTypes ?? [])
+      }
+
+      if (mode === 'edit' && eventId) {
+        const savedSnapshot = buildDraftStateSnapshot(
+          { ...form, id: eventId, ticketTypes: savedTicketTypes },
+          speakerDrafts,
+          savedPromoCodes
+        )
+        persistedSnapshotRef.current = savedSnapshot
+        setPersistedSnapshot(savedSnapshot)
       }
 
       if (action === 'publish' && eventId) {
@@ -1770,7 +2459,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
           const publishFieldErrors = parsePublishIssueFieldErrors(publishJson?.details)
           if (Object.keys(publishFieldErrors).length > 0) {
             setFieldErrors((current) => ({ ...current, ...publishFieldErrors }))
-            focusFirstInvalidField(publishFieldErrors, [])
+            focusFirstInvalidControl(publishFieldErrors, [])
           }
           throw new Error(publishJson?.error || 'Failed to publish event')
         }
@@ -1780,7 +2469,9 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       cleanupObjectUrl('bottomImage')
 
       if (mode === 'create' && eventSlug) {
-        router.push(`/events/${eventSlug}?notice=created`)
+        navigateWithHistoryGuardCleanup(() => {
+          router.push(`/events/${eventSlug}?notice=created`)
+        })
         return
       }
 
@@ -1791,7 +2482,9 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       }
 
       if (eventId) {
-        router.push(`/dashboard/events/${eventId}/edit`)
+        navigateWithHistoryGuardCleanup(() => {
+          router.push(`/dashboard/events/${eventId}/edit`)
+        })
       } else {
         router.refresh()
       }
@@ -1806,17 +2499,23 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
 
   function onTimezoneChanged(nextTimezone: string) {
     const fallbackTimezone = isValidTimeZone(nextTimezone) ? nextTimezone : 'UTC'
+    const nextForm = {
+      ...form,
+      timezone: fallbackTimezone,
+      startDate: convertDateTimeLocalBetweenTimeZones(form.startDate, form.timezone || 'UTC', fallbackTimezone),
+      endDate: convertDateTimeLocalBetweenTimeZones(form.endDate, form.timezone || 'UTC', fallbackTimezone),
+    }
 
     setForm((current) => ({
       ...current,
-      timezone: fallbackTimezone,
-      startDate: convertDateTimeLocalBetweenTimeZones(current.startDate, current.timezone || 'UTC', fallbackTimezone),
-      endDate: convertDateTimeLocalBetweenTimeZones(current.endDate, current.timezone || 'UTC', fallbackTimezone),
+      timezone: nextForm.timezone,
+      startDate: nextForm.startDate,
+      endDate: nextForm.endDate,
     }))
 
-    clearFieldError('timezone')
-    clearFieldError('startDate')
-    clearFieldError('endDate')
+    validateFieldIfActive('timezone', nextForm)
+    validateFieldIfActive('startDate', nextForm)
+    validateFieldIfActive('endDate', nextForm)
   }
 
   function onCancel() {
@@ -1835,6 +2534,10 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
 
   function doNavigateAway() {
     setDiscardChangesConfirm(false)
+    performCancelNavigation()
+  }
+
+  function performCancelNavigation() {
     if (mode === 'create') {
       router.push('/dashboard/events')
       return
@@ -1846,6 +2549,29 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
     }
 
     router.push('/dashboard/events')
+  }
+
+  function navigateWithHistoryGuardCleanup(callback: () => void, options?: { keepBypassGuard?: boolean }) {
+    const continueNavigation = () => {
+      bypassNavigationGuardRef.current = true
+      historyGuardActiveRef.current = false
+      callback()
+
+      if (!options?.keepBypassGuard) {
+        window.setTimeout(() => {
+          bypassNavigationGuardRef.current = false
+        }, 0)
+      }
+    }
+
+    if (!historyGuardActiveRef.current) {
+      continueNavigation()
+      return
+    }
+
+    bypassNavigationGuardRef.current = true
+    window.history.back()
+    window.setTimeout(continueNavigation, 0)
   }
 
   const remoteBannerPreviewSrc =
@@ -1871,6 +2597,102 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
       <h2 className="text-3xl font-semibold tracking-tight text-gray-900">
         {mode === 'create' ? 'Create Event Info' : 'Edit Event Info'}
       </h2>
+
+      <section ref={progressTrackerRef} className="rounded-2xl border border-[#d1d5dc] bg-[#f9fafb] p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#5c8bd9]">Progress</p>
+            <h3 className="mt-1 text-xl font-semibold text-gray-900">
+              {activeProgressStep.complete ? 'Ready to publish' : `Current focus: ${activeProgressStep.label}`}
+            </h3>
+            <p className="mt-1 text-sm text-[#4a5565]">{activeProgressStep.description}</p>
+          </div>
+          <div className="md:text-right">
+            <p className="text-sm font-medium text-gray-900">
+              {completedStepCount === progressSteps.length
+                ? 'All sections are ready.'
+                : `${completedStepCount} of ${progressSteps.length} sections complete`}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {progressSteps.map((step) => (
+            <div
+              key={step.label}
+              className={`rounded-2xl border px-4 py-3 ${
+                step.complete
+                  ? 'border-[#b6d2a4] bg-[#eef8e8]'
+                  : activeProgressStep.label === step.label
+                    ? 'border-[#5c8bd9] bg-white'
+                    : 'border-[#d1d5dc] bg-white'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                    step.complete
+                      ? 'bg-[#1f7a1f] text-white'
+                      : activeProgressStep.label === step.label
+                        ? 'bg-[#5c8bd9] text-white'
+                        : 'bg-[#e5e7eb] text-[#4a5565]'
+                  }`}
+                >
+                  {step.indicator}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{step.label}</p>
+                  <p className="text-xs text-[#4a5565]">{step.statusText}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div
+        className={`fixed right-3 bottom-3 z-40 transition-all duration-200 ease-out sm:right-4 sm:bottom-4 ${
+          isPrimaryProgressVisible
+            ? 'pointer-events-none translate-y-3 opacity-0'
+            : 'pointer-events-none translate-y-0 opacity-100'
+        }`}
+      >
+        <div
+          className={`w-[min(220px,calc(100vw-1.5rem))] rounded-2xl border px-3 py-2.5 shadow-[0px_8px_18px_rgba(15,23,42,0.12)] backdrop-blur transition-colors ${
+            recentlyCompletedStep
+              ? 'border-[#b6d2a4] bg-[#eef8e8]/95'
+              : 'border-[#d1d5dc] bg-[#f9fafb]/96'
+          }`}
+        >
+          <div className="flex items-start gap-2.5">
+            <span
+              className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                recentlyCompletedStep
+                  ? 'bg-[#1f7a1f] text-white'
+                  : 'bg-[#5c8bd9] text-white'
+              }`}
+            >
+              {recentlyCompletedStep ? '✓' : activeProgressStep.indicator}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5c8bd9]">Current Step</p>
+              <p className="mt-0.5 truncate text-xs font-semibold text-gray-900">{floatingProgressLabel}</p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-[#4a5565]">
+                  {stepsRemainingCount === 0
+                    ? '0 left'
+                    : `${stepsRemainingCount} left`}
+                </span>
+                {recentlyCompletedStep ? (
+                  <span className="rounded-full bg-[#d7efc7] px-2 py-0.5 text-[11px] font-semibold text-[#1f5f1f]">
+                    Complete
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {generalErrors.length > 0 ? (
         <div className="sticky top-4 z-10 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -1900,6 +2722,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
         <h3 className="text-2xl font-bold text-black">Header Image</h3>
 
         <button
+          id="coverImage"
           type="button"
           onClick={() => bannerInputRef.current?.click()}
           disabled={isUploadingBanner}
@@ -1910,6 +2733,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
             void onImageDrop(event, 'coverImage')
           }}
           aria-label={bannerImageSrc ? 'Change banner image' : 'Add banner image'}
+          aria-describedby={fieldErrors.coverImage ? 'coverImage-error' : undefined}
           className={`group relative w-full cursor-pointer overflow-hidden rounded-[14px] border-[1.6px] text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5c8bd9] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 ${
             isBannerDropActive
               ? 'border-[#5c8bd9] bg-blue-50/30'
@@ -1972,7 +2796,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
             ) : null}
           </div>
         ) : null}
-        {fieldErrors.coverImage ? <p className="text-sm text-red-600">{fieldErrors.coverImage}</p> : null}
+        {fieldErrors.coverImage ? <p id="coverImage-error" className="text-sm text-red-600">{fieldErrors.coverImage}</p> : null}
       </section>
 
       <section className="space-y-4 border-b border-[#d1d5dc] pb-4">
@@ -1987,11 +2811,12 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
               value={form.title}
               error={fieldErrors.title}
               onChange={(e) => updateField('title', e.target.value)}
+              onBlur={() => handleFieldBlur('title')}
               className="h-10 rounded-[10px] border-[0.8px] border-[#d1d5dc] bg-[#f9fafb] px-3 py-2 text-sm placeholder:text-[#99a1af] focus:ring-[#5c8bd9]"
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="sponsorNames" required className="text-base font-semibold text-black">Organization</Label>
+            <Label htmlFor="sponsorNames" className="text-base font-semibold text-black">Organization</Label>
             <Input
               id="sponsorNames"
               placeholder="Organization name"
@@ -2003,13 +2828,19 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
         </div>
 
         {categories.length > 0 ? (
-          <div className="flex flex-col gap-2" ref={categoryDropdownRef}>
+          <div className="flex flex-col gap-2" ref={categoryDropdownRef} onBlur={(event) => handleCompositeFieldBlur(event, 'categoryIds')}>
             <Label required className="text-base font-semibold text-black">Category</Label>
             <div className="relative">
               <button
+                id="categoryIds"
                 type="button"
+                aria-haspopup="listbox"
+                aria-expanded={isCategoryOpen}
+                aria-describedby={fieldErrors.categoryIds ? 'categoryIds-error' : undefined}
                 onClick={() => setIsCategoryOpen((open) => !open)}
-                className="flex h-10 w-full items-center justify-between rounded-[10px] border-[0.8px] border-[#d1d5dc] bg-[#f9fafb] px-3 text-sm hover:border-[#5c8bd9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5c8bd9]"
+                className={`flex h-10 w-full items-center justify-between rounded-[10px] border-[0.8px] bg-[#f9fafb] px-3 text-sm hover:border-[#5c8bd9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5c8bd9] ${
+                  fieldErrors.categoryIds ? 'border-red-500' : 'border-[#d1d5dc]'
+                }`}
               >
                 <span className={form.categoryIds?.length ? 'text-gray-900' : 'text-[#99a1af]'}>
                   {form.categoryIds?.length
@@ -2019,7 +2850,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                 <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" />
               </button>
               {isCategoryOpen ? (
-                <div className="absolute top-[calc(100%+8px)] left-0 z-50 w-[220px] rounded-2xl bg-white py-2 shadow-2xl max-h-72 overflow-y-auto">
+                <div role="listbox" aria-labelledby="categoryIds" className="absolute top-[calc(100%+8px)] left-0 z-50 w-[220px] rounded-2xl bg-white py-2 shadow-2xl max-h-72 overflow-y-auto">
                   {categories.map((cat) => {
                     const selected = form.categoryIds?.includes(cat.id)
                     return (
@@ -2042,6 +2873,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                 </div>
               ) : null}
             </div>
+            {fieldErrors.categoryIds ? <p id="categoryIds-error" className="mt-1 text-sm text-red-600">{fieldErrors.categoryIds}</p> : null}
           </div>
         ) : null}
 
@@ -2049,12 +2881,17 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
           <Label htmlFor="description" required className="text-base font-semibold text-black">Description</Label>
           <textarea
             id="description"
-            className="min-h-[169.6px] w-full resize-y rounded-[10px] border-[0.8px] border-[#d1d5dc] bg-[#f9fafb] px-4 py-3 text-base placeholder:text-[#99a1af] focus:outline-none focus:ring-2 focus:ring-[#5c8bd9] focus:border-transparent"
+            aria-invalid={fieldErrors.description ? true : undefined}
+            aria-describedby={fieldErrors.description ? 'description-error' : undefined}
+            className={`min-h-[169.6px] w-full resize-y rounded-[10px] border-[0.8px] bg-[#f9fafb] px-4 py-3 text-base placeholder:text-[#99a1af] focus:outline-none focus:ring-2 focus:border-transparent ${
+              fieldErrors.description ? 'border-red-500 focus:ring-red-500' : 'border-[#d1d5dc] focus:ring-[#5c8bd9]'
+            }`}
             placeholder="Describe your event..."
             value={form.description || ''}
             onChange={(e) => updateField('description', e.target.value)}
+            onBlur={() => handleFieldBlur('description')}
           />
-          {fieldErrors.description ? <p className="mt-1 text-sm text-red-600">{fieldErrors.description}</p> : null}
+          {fieldErrors.description ? <p id="description-error" className="mt-1 text-sm text-red-600">{fieldErrors.description}</p> : null}
         </div>
       </section>
 
@@ -2064,13 +2901,17 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
           {/* Start Date */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2" onBlur={(event) => handleCompositeFieldBlur(event, 'startDate')}>
             <Label required className="text-base font-semibold text-black">Start Date</Label>
             <div className="relative">
               <button
+                id="startDate"
                 type="button"
+                aria-describedby={fieldErrors.startDate ? 'startDate-error' : undefined}
                 onClick={() => openCalendarFor('startDate')}
-                className="flex h-10 w-full items-center justify-between rounded-[10px] border-[0.8px] border-[#d1d5dc] bg-[#f9fafb] px-3 text-sm hover:border-[#5c8bd9] transition-colors focus:outline-none focus:ring-2 focus:ring-[#5c8bd9]"
+                className={`flex h-10 w-full items-center justify-between rounded-[10px] border-[0.8px] bg-[#f9fafb] px-3 text-sm hover:border-[#5c8bd9] transition-colors focus:outline-none focus:ring-2 ${
+                  fieldErrors.startDate ? 'border-red-500 focus:ring-red-500' : 'border-[#d1d5dc] focus:ring-[#5c8bd9]'
+                }`}
               >
                 <span className={getDatePart(form.startDate) ? 'font-medium text-gray-900' : 'text-[#828283]'}>
                   {getDatePart(form.startDate)
@@ -2126,17 +2967,21 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                 </div>
               )}
             </div>
-            {fieldErrors.startDate ? <p className="text-sm text-red-600">{fieldErrors.startDate}</p> : null}
+            {fieldErrors.startDate ? <p id="startDate-error" className="text-sm text-red-600">{fieldErrors.startDate}</p> : null}
           </div>
 
           {/* End Date */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2" onBlur={(event) => handleCompositeFieldBlur(event, 'endDate')}>
             <Label required className="text-base font-semibold text-black">End Date</Label>
             <div className="relative">
               <button
+                id="endDate"
                 type="button"
+                aria-describedby={fieldErrors.endDate ? 'endDate-error' : undefined}
                 onClick={() => openCalendarFor('endDate')}
-                className="flex h-10 w-full items-center justify-between rounded-[10px] border-[0.8px] border-[#d1d5dc] bg-[#f9fafb] px-3 text-sm hover:border-[#5c8bd9] transition-colors focus:outline-none focus:ring-2 focus:ring-[#5c8bd9]"
+                className={`flex h-10 w-full items-center justify-between rounded-[10px] border-[0.8px] bg-[#f9fafb] px-3 text-sm hover:border-[#5c8bd9] transition-colors focus:outline-none focus:ring-2 ${
+                  fieldErrors.endDate ? 'border-red-500 focus:ring-red-500' : 'border-[#d1d5dc] focus:ring-[#5c8bd9]'
+                }`}
               >
                 <span className={getDatePart(form.endDate) ? 'font-medium text-gray-900' : 'text-[#828283]'}>
                   {getDatePart(form.endDate)
@@ -2192,17 +3037,20 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                 </div>
               )}
             </div>
-            {fieldErrors.endDate ? <p className="text-sm text-red-600">{fieldErrors.endDate}</p> : null}
+            {fieldErrors.endDate ? <p id="endDate-error" className="text-sm text-red-600">{fieldErrors.endDate}</p> : null}
           </div>
 
           {/* Start Time */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2" onBlur={(event) => handleCompositeFieldBlur(event, 'startDate')}>
             <Label required className="text-base font-semibold text-black">Start Time</Label>
             <div className="relative">
               <button
                 type="button"
+                aria-describedby={fieldErrors.startDate ? 'startDate-error' : undefined}
                 onClick={() => setOpenDateTimePanel((p) => (p === 'startTime' ? null : 'startTime'))}
-                className="flex h-10 w-full items-center justify-between rounded-[10px] border-[0.8px] border-[#d1d5dc] bg-[#f9fafb] px-3 text-sm hover:border-[#5c8bd9] transition-colors focus:outline-none focus:ring-2 focus:ring-[#5c8bd9]"
+                className={`flex h-10 w-full items-center justify-between rounded-[10px] border-[0.8px] bg-[#f9fafb] px-3 text-sm hover:border-[#5c8bd9] transition-colors focus:outline-none focus:ring-2 ${
+                  fieldErrors.startDate ? 'border-red-500 focus:ring-red-500' : 'border-[#d1d5dc] focus:ring-[#5c8bd9]'
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-gray-500" aria-hidden>
@@ -2254,13 +3102,16 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
           </div>
 
           {/* End Time */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2" onBlur={(event) => handleCompositeFieldBlur(event, 'endDate')}>
             <Label required className="text-base font-semibold text-black">End Time</Label>
             <div className="relative">
               <button
                 type="button"
+                aria-describedby={fieldErrors.endDate ? 'endDate-error' : undefined}
                 onClick={() => setOpenDateTimePanel((p) => (p === 'endTime' ? null : 'endTime'))}
-                className="flex h-10 w-full items-center justify-between rounded-[10px] border-[0.8px] border-[#d1d5dc] bg-[#f9fafb] px-3 text-sm hover:border-[#5c8bd9] transition-colors focus:outline-none focus:ring-2 focus:ring-[#5c8bd9]"
+                className={`flex h-10 w-full items-center justify-between rounded-[10px] border-[0.8px] bg-[#f9fafb] px-3 text-sm hover:border-[#5c8bd9] transition-colors focus:outline-none focus:ring-2 ${
+                  fieldErrors.endDate ? 'border-red-500 focus:ring-red-500' : 'border-[#d1d5dc] focus:ring-[#5c8bd9]'
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-gray-500" aria-hidden>
@@ -2317,9 +3168,14 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
             <div className="relative">
               <select
                 id="timezone"
-                className="h-10 w-full appearance-none rounded-[10px] border-[0.8px] border-[#d1d5dc] bg-[#f9fafb] px-3 pr-8 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#5c8bd9]"
+                aria-invalid={fieldErrors.timezone ? true : undefined}
+                aria-describedby={fieldErrors.timezone ? 'timezone-error' : undefined}
+                className={`h-10 w-full appearance-none rounded-[10px] border-[0.8px] bg-[#f9fafb] px-3 pr-8 text-sm text-gray-900 focus:outline-none focus:ring-2 ${
+                  fieldErrors.timezone ? 'border-red-500 focus:ring-red-500' : 'border-[#d1d5dc] focus:ring-[#5c8bd9]'
+                }`}
                 value={form.timezone}
                 onChange={(e) => onTimezoneChanged(e.target.value)}
+                onBlur={() => handleFieldBlur('timezone')}
               >
                 {timezoneOptions.map((tz) => (
                   <option key={tz} value={tz}>{tz}</option>
@@ -2329,7 +3185,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </div>
-            {fieldErrors.timezone ? <p className="mt-1 text-sm text-red-600">{fieldErrors.timezone}</p> : null}
+            {fieldErrors.timezone ? <p id="timezone-error" className="mt-1 text-sm text-red-600">{fieldErrors.timezone}</p> : null}
           </div>
 
         </div>
@@ -2373,6 +3229,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                   value={form.venue || ''}
                   error={fieldErrors.venue}
                   onChange={(e) => updateField('venue', e.target.value)}
+                  onBlur={() => handleFieldBlur('venue')}
                   className="h-[40px] rounded-[10px] border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-base placeholder:text-[#828283]"
                 />
               </div>
@@ -2384,6 +3241,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                   value={form.address || ''}
                   error={fieldErrors.address}
                   onChange={(e) => updateField('address', e.target.value)}
+                  onBlur={() => handleFieldBlur('address')}
                   className="h-[40px] rounded-[10px] border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-base placeholder:text-[#828283]"
                 />
               </div>
@@ -2395,6 +3253,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                   value={form.city || ''}
                   error={fieldErrors.city}
                   onChange={(e) => updateField('city', e.target.value)}
+                  onBlur={() => handleFieldBlur('city')}
                   className="h-[40px] rounded-[10px] border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-base placeholder:text-[#828283]"
                 />
               </div>
@@ -2416,6 +3275,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                   value={form.country || ''}
                   error={fieldErrors.country}
                   onChange={(e) => updateField('country', e.target.value)}
+                  onBlur={() => handleFieldBlur('country')}
                   className="h-[40px] rounded-[10px] border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-base placeholder:text-[#828283]"
                 />
               </div>
@@ -2439,6 +3299,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                 value={form.onlineUrl || ''}
                 error={fieldErrors.onlineUrl}
                 onChange={(e) => updateField('onlineUrl', e.target.value)}
+                onBlur={() => handleFieldBlur('onlineUrl')}
                 className="h-[50px] rounded-[10px] border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-base placeholder:text-[#828283]"
               />
             </div>
@@ -2516,20 +3377,23 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                       className="text-[14px] font-medium leading-5 text-[#4a5565]"
                       style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
                     >
-                      Ticket Name
+                      Ticket Name <span className="ml-1 text-red-500">*</span>
                     </label>
                     <input
                       id={`ticketTypeName-${index}`}
                       type="text"
+                      aria-invalid={rowErrors.name ? true : undefined}
+                      aria-describedby={rowErrors.name ? `ticketTypeName-${index}-error` : undefined}
                       value={ticketType.name}
                       onChange={(event) => updateTicketTypeField(index, 'name', event.target.value)}
+                      onBlur={() => handleTicketFieldBlur(index, 'name')}
                       placeholder="e.g., General Admission"
                       className={`h-[41px] w-full rounded-[10px] border-[0.8px] bg-white px-4 py-2 text-[16px] text-black placeholder-[#828283] outline-none transition focus:border-[#5c8bd9] focus:ring-0 ${
                         rowErrors.name ? 'border-red-500' : 'border-[#d1d5dc]'
                       }`}
                       style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
                     />
-                    {rowErrors.name ? <p className="text-sm text-red-600">{rowErrors.name}</p> : null}
+                    {rowErrors.name ? <p id={`ticketTypeName-${index}-error`} className="text-sm text-red-600">{rowErrors.name}</p> : null}
                   </div>
 
                   {/* Capacity */}
@@ -2546,15 +3410,18 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                       type="number"
                       min={1}
                       step={1}
+                      aria-invalid={rowErrors.capacity ? true : undefined}
+                      aria-describedby={rowErrors.capacity ? `ticketCapacity-${index}-error` : undefined}
                       value={ticketType.capacity}
                       onChange={(event) => updateTicketTypeField(index, 'capacity', event.target.value)}
+                      onBlur={() => handleTicketFieldBlur(index, 'capacity')}
                       placeholder="Number of tickets available"
                       className={`h-[41px] w-full rounded-[10px] border-[0.8px] bg-white px-4 py-2 text-[16px] text-black placeholder-[#828283] outline-none transition focus:border-[#5c8bd9] focus:ring-0 ${
                         rowErrors.capacity ? 'border-red-500' : 'border-[#d1d5dc]'
                       }`}
                       style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
                     />
-                    {rowErrors.capacity ? <p className="text-sm text-red-600">{rowErrors.capacity}</p> : null}
+                    {rowErrors.capacity ? <p id={`ticketCapacity-${index}-error`} className="text-sm text-red-600">{rowErrors.capacity}</p> : null}
                   </div>
 
                   {/* Price */}
@@ -2564,22 +3431,25 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                       className="text-[14px] font-medium leading-5 text-[#4a5565]"
                       style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
                     >
-                      Price
+                      Price <span className="ml-1 text-red-500">*</span>
                     </label>
                     <input
                       id={`ticketPrice-${index}`}
                       type="number"
                       min={0}
                       step="0.01"
+                      aria-invalid={rowErrors.price ? true : undefined}
+                      aria-describedby={rowErrors.price ? `ticketPrice-${index}-error` : undefined}
                       value={ticketType.price}
                       onChange={(event) => updateTicketTypeField(index, 'price', event.target.value)}
+                      onBlur={() => handleTicketFieldBlur(index, 'price')}
                       placeholder="0"
                       className={`h-[41px] w-full rounded-[10px] border-[0.8px] bg-white px-4 py-2 text-[16px] text-black placeholder-[#828283] outline-none transition focus:border-[#5c8bd9] focus:ring-0 ${
                         rowErrors.price ? 'border-red-500' : 'border-[#d1d5dc]'
                       }`}
                       style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
                     />
-                    {rowErrors.price ? <p className="text-sm text-red-600">{rowErrors.price}</p> : null}
+                    {rowErrors.price ? <p id={`ticketPrice-${index}-error`} className="text-sm text-red-600">{rowErrors.price}</p> : null}
                   </div>
 
                   {/* Currency */}
@@ -2589,17 +3459,20 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                       className="text-[14px] font-medium leading-5 text-[#4a5565]"
                       style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
                     >
-                      Currency
+                      Currency <span className="ml-1 text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <select
                         id={`ticketCurrency-${index}`}
+                        aria-invalid={rowErrors.currency ? true : undefined}
+                        aria-describedby={rowErrors.currency ? `ticketCurrency-${index}-error` : undefined}
                         className={`h-[41px] w-full appearance-none rounded-[10px] border-[0.8px] bg-white px-4 py-2 text-[16px] text-black outline-none transition focus:border-[#5c8bd9] focus:ring-0 ${
                           rowErrors.currency ? 'border-red-500' : 'border-[#d1d5dc]'
                         }`}
                         style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
                         value={legacyCurrency || normalizedCurrency}
                         onChange={(event) => updateTicketTypeField(index, 'currency', event.target.value)}
+                        onBlur={() => handleTicketFieldBlur(index, 'currency')}
                       >
                         {legacyCurrency ? (
                           <option value={legacyCurrency}>{`${legacyCurrency} (unsupported)`}</option>
@@ -2615,7 +3488,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                     {legacyCurrency ? (
                       <p className="text-sm text-amber-700">Select a supported currency before publishing.</p>
                     ) : null}
-                    {rowErrors.currency ? <p className="text-sm text-red-600">{rowErrors.currency}</p> : null}
+                    {rowErrors.currency ? <p id={`ticketCurrency-${index}-error`} className="text-sm text-red-600">{rowErrors.currency}</p> : null}
                   </div>
                 </div>
               </div>
@@ -2726,7 +3599,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-[#4a5565]" htmlFor={`promoUsageLimit-${index}`}>
-                        Usage Limit
+                        Max discounted tickets (not orders)
                       </label>
                       <input
                         id={`promoUsageLimit-${index}`}
@@ -2921,6 +3794,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
             <p className="text-base font-semibold text-black">Images</p>
 
             <button
+              id="bottomImage"
               type="button"
               onClick={() => bottomInputRef.current?.click()}
               disabled={isUploadingBottom}
@@ -2929,6 +3803,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
               onDragLeave={(event) => onImageDragLeave(event, 'bottomImage')}
               onDrop={(event) => { void onImageDrop(event, 'bottomImage') }}
               aria-label={bottomImageSrc ? 'Change event image' : 'Add event image'}
+              aria-describedby={fieldErrors.bottomImage ? 'bottomImage-error' : undefined}
               className={`group relative w-full cursor-pointer overflow-hidden rounded-[10px] border-[1.6px] text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5c8bd9] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 ${
                 isBottomDropActive
                   ? 'border-[#5c8bd9] bg-blue-50/30'
@@ -2994,7 +3869,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                 ) : null}
               </div>
             ) : null}
-            {fieldErrors.bottomImage ? <p className="text-sm text-red-600">{fieldErrors.bottomImage}</p> : null}
+            {fieldErrors.bottomImage ? <p id="bottomImage-error" className="text-sm text-red-600">{fieldErrors.bottomImage}</p> : null}
           </div>
 
           {/* Videos column */}
@@ -3003,7 +3878,6 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
 
             {videoSrc ? (
               <div className="overflow-hidden rounded-[10px] border-[1.6px] border-[#d1d5dc]">
-                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                 <video
                   src={videoSrc}
                   className="w-full"
@@ -3013,10 +3887,12 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
               </div>
             ) : (
               <button
+                id="videoUrl"
                 type="button"
                 onClick={() => videoInputRef.current?.click()}
                 disabled={isUploadingVideo}
                 aria-label="Upload video"
+                aria-describedby={fieldErrors.videoUrl ? 'videoUrl-error' : undefined}
                 className="group relative w-full cursor-pointer overflow-hidden rounded-[10px] border-[1.6px] border-[#d1d5dc] bg-white text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5c8bd9] focus-visible:ring-offset-2 hover:border-[#5c8bd9] hover:bg-blue-50/10 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 <div className="flex flex-col items-center justify-center gap-2 px-[25.6px] py-[25.6px]">
@@ -3040,7 +3916,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
                 </Button>
               </div>
             ) : null}
-            {fieldErrors.videoUrl ? <p className="text-sm text-red-600">{fieldErrors.videoUrl}</p> : null}
+            {fieldErrors.videoUrl ? <p id="videoUrl-error" className="text-sm text-red-600">{fieldErrors.videoUrl}</p> : null}
           </div>
         </div>
       </section>
@@ -3122,7 +3998,7 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button onClick={() => submit('save')} isLoading={isSubmitting}>
+          <Button onClick={() => submit('save')} isLoading={isSubmitting} disabled={isSubmitting || isAutosaving}>
             Save changes
           </Button>
         </div>
@@ -3139,13 +4015,15 @@ export function EventForm({ mode, initialData, initialSpeakers, categories = [],
           <Button
             onClick={() => submit('save')}
             isLoading={isSubmitting}
+            disabled={isSubmitting || isAutosaving}
             className="h-[50px] w-[152px] rounded-[10px] bg-[#e5e7eb] text-[#4a5565] text-lg font-semibold hover:bg-[#d1d5dc]"
           >
-            Save Draft
+            Save as Draft
           </Button>
           <Button
             onClick={() => submit('publish')}
             isLoading={isSubmitting}
+            disabled={isSubmitting || isAutosaving}
             className="h-[50px] w-[190px] rounded-[10px] bg-[#5c8bd9] text-white text-lg font-semibold shadow-[0px_4px_6px_0px_rgba(0,0,0,0.1),0px_2px_4px_0px_rgba(0,0,0,0.1)] hover:bg-[#4a7ac8]"
           >
             Publish Event
