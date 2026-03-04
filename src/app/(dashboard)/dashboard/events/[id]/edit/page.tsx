@@ -99,6 +99,9 @@ export default async function EditEventPage({ params }: PageProps) {
           },
           orderBy: { createdAt: 'asc' },
         },
+        groupDiscounts: {
+          orderBy: [{ minQuantity: 'asc' }, { createdAt: 'asc' }],
+        },
       },
     }),
     prisma.category.findMany({
@@ -147,6 +150,14 @@ export default async function EditEventPage({ params }: PageProps) {
           ticketTypeId: dc.ticketTypes[0]?.ticketTypeId ?? '',
           maxUses: dc.maxUses !== null ? String(dc.maxUses) : '',
           minCartAmount: dc.minCartAmount !== null ? String(Number(dc.minCartAmount)) : '',
+        }))}
+        initialGroupDiscounts={event.groupDiscounts.map((gd) => ({
+          id: gd.id,
+          ticketTypeId: gd.ticketTypeId ?? '',
+          minQuantity: String(gd.minQuantity),
+          discountType: gd.discountType as 'PERCENTAGE' | 'FIXED',
+          discountValue: String(Number(gd.discountValue)),
+          isActive: gd.isActive,
         }))}
         initialData={{
           id: event.id,

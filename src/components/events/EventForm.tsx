@@ -53,6 +53,15 @@ type PromoCodeDraft = {
   minCartAmount: string;
 };
 
+type GroupDiscountDraft = {
+  id?: string;
+  ticketTypeId: string;
+  minQuantity: string;
+  discountType: "PERCENTAGE" | "FIXED";
+  discountValue: string;
+  isActive: boolean;
+};
+
 type TicketTypeDraft = {
   id?: string;
   name: string;
@@ -114,6 +123,7 @@ type EventFormProps = {
   initialSpeakers?: InitialSpeaker[];
   categories?: Category[];
   initialPromoCodes?: PromoCodeDraft[];
+  initialGroupDiscounts?: GroupDiscountDraft[];
 };
 
 type FieldKey =
@@ -193,10 +203,22 @@ function buildPromoCodeSnapshot(promoCode: PromoCodeDraft) {
   };
 }
 
+function buildGroupDiscountSnapshot(groupDiscount: GroupDiscountDraft) {
+  return {
+    id: groupDiscount.id || "",
+    ticketTypeId: groupDiscount.ticketTypeId || "",
+    minQuantity: groupDiscount.minQuantity.trim(),
+    discountType: groupDiscount.discountType,
+    discountValue: groupDiscount.discountValue.trim(),
+    isActive: groupDiscount.isActive,
+  };
+}
+
 function buildDraftStateSnapshot(
   form: EventFormData,
   speakerDrafts: SpeakerDraft[],
   promoCodes: PromoCodeDraft[],
+  groupDiscounts: GroupDiscountDraft[] = [],
 ) {
   const formSnapshot = JSON.parse(buildSnapshot(form)) as Record<
     string,
@@ -209,6 +231,7 @@ function buildDraftStateSnapshot(
     promoCodes: promoCodes.map((promoCode) =>
       buildPromoCodeSnapshot(promoCode),
     ),
+    groupDiscounts: groupDiscounts.map((gd) => buildGroupDiscountSnapshot(gd)),
   });
 }
 
@@ -759,6 +782,7 @@ export function EventForm({
   initialSpeakers,
   categories = [],
   initialPromoCodes = [],
+  initialGroupDiscounts = [],
 }: EventFormProps) {
   const router = useRouter();
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
@@ -849,8 +873,9 @@ export function EventForm({
         initialFormState,
         initialSpeakerDrafts,
         initialPromoCodes,
+        initialGroupDiscounts,
       ),
-    [initialFormState, initialPromoCodes, initialSpeakerDrafts],
+    [initialFormState, initialPromoCodes, initialGroupDiscounts, initialSpeakerDrafts],
   );
 
   const [form, setForm] = useState<EventFormData>(initialFormState);
@@ -952,6 +977,8 @@ export function EventForm({
 
   const [promoCodes, setPromoCodes] =
     useState<PromoCodeDraft[]>(initialPromoCodes);
+  const [groupDiscounts, setGroupDiscounts] =
+    useState<GroupDiscountDraft[]>(initialGroupDiscounts);
   const [showPreview, setShowPreview] = useState(false);
   const [persistedSnapshot, setPersistedSnapshot] = useState(
     initialPersistedSnapshot,
@@ -969,6 +996,13 @@ export function EventForm({
         .filter((id): id is string => Boolean(id)),
     ),
   );
+  const persistedGroupDiscountIdsRef = useRef(
+    new Set(
+      initialGroupDiscounts
+        .map((gd) => gd.id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
   const persistedSnapshotRef = useRef(initialPersistedSnapshot);
   const initialSnapshotRef = useRef(buildSnapshot(initialFormState));
   const autosaveInFlightRef = useRef(false);
@@ -979,9 +1013,10 @@ export function EventForm({
   const speakerDraftsRef = useRef(speakerDrafts);
   const promoCodesRef = useRef(promoCodes);
   const isSubmittingRef = useRef(isSubmitting);
+  const groupDiscountsRef = useRef(groupDiscounts);
   const currentDraftSnapshot = useMemo(
-    () => buildDraftStateSnapshot(form, speakerDrafts, promoCodes),
-    [form, promoCodes, speakerDrafts],
+    () => buildDraftStateSnapshot(form, speakerDrafts, promoCodes, groupDiscounts),
+    [form, promoCodes, groupDiscounts, speakerDrafts],
   );
   const hasUnsavedChanges = currentDraftSnapshot !== persistedSnapshot;
   const previousProgressStateRef = useRef<Record<string, boolean>>({});
@@ -1475,6 +1510,36 @@ export function EventForm({
     });
   };
 
+  const addGroupDiscount = () => {
+    setGroupDiscounts((current) => [
+      ...current,
+      {
+        ticketTypeId: "",
+        minQuantity: "2",
+        discountType: "PERCENTAGE",
+        discountValue: "10",
+        isActive: true,
+      },
+    ]);
+  };
+
+  const removeGroupDiscount = (index: number) => {
+    setGroupDiscounts((current) => current.filter((_, i) => i !== index));
+  };
+
+  const updateGroupDiscountField = <K extends keyof GroupDiscountDraft>(
+    index: number,
+    key: K,
+    value: GroupDiscountDraft[K],
+  ) => {
+    setGroupDiscounts((current) => {
+      const next = [...current];
+      if (!next[index]) return current;
+      next[index] = { ...next[index], [key]: value };
+      return next;
+    });
+  };
+
   function cleanupObjectUrl(targetField: ImageTargetField) {
     if (targetField === "coverImage") {
       if (bannerObjectUrlRef.current) {
@@ -1668,6 +1733,10 @@ export function EventForm({
   }, [promoCodes]);
 
   useEffect(() => {
+    groupDiscountsRef.current = groupDiscounts;
+  }, [groupDiscounts]);
+
+  useEffect(() => {
     isSubmittingRef.current = isSubmitting;
   }, [isSubmitting]);
 
@@ -1794,6 +1863,7 @@ export function EventForm({
           formRef.current,
           speakerDraftsRef.current,
           promoCodesRef.current,
+          groupDiscountsRef.current,
         )
       ) {
         return;
@@ -1802,6 +1872,7 @@ export function EventForm({
       const currentForm = formRef.current;
       const currentSpeakerDrafts = speakerDraftsRef.current;
       const currentPromoCodes = promoCodesRef.current;
+      const currentGroupDiscounts = groupDiscountsRef.current;
       const currentTicketTypes = currentForm.ticketTypes || [];
 
       if (!currentForm.id || !currentForm.title.trim()) return;
@@ -1850,6 +1921,7 @@ export function EventForm({
         currentForm,
         currentSpeakerDrafts,
         currentPromoCodes,
+        currentGroupDiscounts,
       );
       const payload = buildEventPayload(
         currentForm,
@@ -1883,10 +1955,16 @@ export function EventForm({
             savedTicketTypes ?? [],
             currentPromoCodes,
           );
+          const savedGroupDiscounts = await syncGroupDiscounts(
+            currentForm.id!,
+            savedTicketTypes ?? [],
+            currentGroupDiscounts,
+          );
           const savedSnapshot = buildDraftStateSnapshot(
             { ...currentForm, ticketTypes: savedTicketTypes },
             currentSpeakerDrafts,
             savedPromoCodes,
+            savedGroupDiscounts,
           );
 
           if (persistedSnapshotRef.current !== eventSnapshot) {
@@ -2282,6 +2360,145 @@ export function EventForm({
       }),
     );
     return nextPromoCodes;
+  }
+
+  async function syncGroupDiscounts(
+    eventId: string,
+    savedTicketTypes: TicketTypeDraft[],
+    groupDiscountsInput: GroupDiscountDraft[] = groupDiscounts,
+  ) {
+    // Build a map from temp index-based IDs ("ticket-0") to real IDs, for create mode
+    const tempToRealIdMap = new Map<string, string>();
+    savedTicketTypes.forEach((t, i) => {
+      if (t.id) tempToRealIdMap.set(`ticket-${i}`, t.id);
+    });
+
+    const groupDiscountIdsInForm = new Set(
+      groupDiscountsInput
+        .map((gd) => gd.id)
+        .filter((id): id is string => Boolean(id)),
+    );
+    const idsToDelete = Array.from(persistedGroupDiscountIdsRef.current).filter(
+      (id) => !groupDiscountIdsInForm.has(id),
+    );
+
+    for (const discountId of idsToDelete) {
+      const response = await fetch(
+        `/api/events/${eventId}/group-discounts/${discountId}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) {
+        const json = await response.json();
+        throw new Error(
+          (json?.error as string | undefined) || "Failed to delete group discount",
+        );
+      }
+    }
+
+    const nextGroupDiscounts = [...groupDiscountsInput];
+
+    for (let index = 0; index < groupDiscountsInput.length; index += 1) {
+      const gd = groupDiscountsInput[index];
+      if (!gd.minQuantity.trim() || !gd.discountValue.trim()) {
+        continue;
+      }
+
+      const minQuantity = Number(gd.minQuantity);
+      const discountValue = Number(gd.discountValue);
+      if (
+        Number.isNaN(minQuantity) ||
+        minQuantity < 2 ||
+        Number.isNaN(discountValue) ||
+        discountValue <= 0
+      ) {
+        continue;
+      }
+
+      // Resolve temp ticket type ID to real ID if needed
+      let resolvedTicketTypeId: string | null = null;
+      if (gd.ticketTypeId) {
+        resolvedTicketTypeId =
+          tempToRealIdMap.get(gd.ticketTypeId) ?? gd.ticketTypeId;
+        // Skip if ticketTypeId still looks like a temp value
+        if (resolvedTicketTypeId.startsWith("ticket-")) {
+          resolvedTicketTypeId = null;
+        }
+      }
+
+      const payload = {
+        ticketTypeId: resolvedTicketTypeId,
+        minQuantity,
+        discountType: gd.discountType,
+        discountValue,
+        isActive: gd.isActive,
+      };
+
+      const isExisting = Boolean(gd.id);
+      const endpoint = isExisting
+        ? `/api/events/${eventId}/group-discounts/${gd.id}`
+        : `/api/events/${eventId}/group-discounts`;
+      const method = isExisting ? "PATCH" : "POST";
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          (json?.error as string | undefined) || "Failed to save group discount",
+        );
+      }
+
+      nextGroupDiscounts[index] = {
+        ...nextGroupDiscounts[index],
+        ticketTypeId: resolvedTicketTypeId || "",
+      };
+
+      if (!isExisting && json?.groupDiscount?.id) {
+        nextGroupDiscounts[index] = {
+          ...nextGroupDiscounts[index],
+          id: json.groupDiscount.id as string,
+        };
+      }
+    }
+
+    persistedGroupDiscountIdsRef.current = new Set(
+      nextGroupDiscounts.map((gd) => gd.id).filter((id): id is string => Boolean(id)),
+    );
+    setGroupDiscounts((current) =>
+      current.map((gd, index) => {
+        const savedGd = nextGroupDiscounts[index];
+        const originalGd = groupDiscountsInput[index];
+
+        if (!savedGd || !originalGd) {
+          return gd;
+        }
+
+        const matchesSavedDraft =
+          buildGroupDiscountSnapshot(gd).minQuantity ===
+            buildGroupDiscountSnapshot(originalGd).minQuantity &&
+          buildGroupDiscountSnapshot(gd).discountValue ===
+            buildGroupDiscountSnapshot(originalGd).discountValue &&
+          buildGroupDiscountSnapshot(gd).discountType ===
+            buildGroupDiscountSnapshot(originalGd).discountType &&
+          buildGroupDiscountSnapshot(gd).ticketTypeId ===
+            buildGroupDiscountSnapshot(originalGd).ticketTypeId;
+
+        if (!matchesSavedDraft) {
+          return gd;
+        }
+
+        return {
+          ...gd,
+          id: savedGd.id || gd.id,
+          ticketTypeId: savedGd.ticketTypeId || gd.ticketTypeId,
+        };
+      }),
+    );
+    return nextGroupDiscounts;
   }
 
   function validate(action: "save" | "publish") {
@@ -3001,10 +3218,12 @@ export function EventForm({
 
       let savedTicketTypes = form.ticketTypes || [];
       let savedPromoCodes = promoCodes;
+      let savedGroupDiscounts = groupDiscounts;
 
       if (eventId) {
         savedTicketTypes = await syncTicketTypes(eventId, action);
         savedPromoCodes = await syncPromoCodes(eventId, savedTicketTypes ?? []);
+        savedGroupDiscounts = await syncGroupDiscounts(eventId, savedTicketTypes ?? []);
       }
 
       if (mode === "edit" && eventId) {
@@ -3012,6 +3231,7 @@ export function EventForm({
           { ...form, id: eventId, ticketTypes: savedTicketTypes },
           speakerDrafts,
           savedPromoCodes,
+          savedGroupDiscounts,
         );
         persistedSnapshotRef.current = savedSnapshot;
         setPersistedSnapshot(savedSnapshot);
@@ -4707,6 +4927,189 @@ export function EventForm({
                         updatePromoCodeField(index, "minCartAmount", val);
                       }}
                     />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* ── Group Discounts ─────────────────────────────────────────────────── */}
+      <section className="space-y-4 border-b border-[#d1d5dc] pb-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-2xl font-bold text-black">Group Discounts</h3>
+          <button
+            type="button"
+            onClick={addGroupDiscount}
+            className="flex h-10 items-center gap-2 rounded-[10px] bg-[#5c8bd9] px-4 text-base font-semibold text-white transition-colors hover:bg-[#4a7bc9]"
+          >
+            <span aria-hidden="true" className="text-base leading-none">
+              +
+            </span>
+            Add Discount Tier
+          </button>
+        </div>
+
+        {groupDiscounts.length === 0 ? (
+          <div className="flex h-[88px] w-full items-center justify-center">
+            <p className="text-center text-base text-[#6a7282]">
+              No group discounts added. Click &quot;Add Discount Tier&quot; to
+              create one.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {groupDiscounts.map((gd, index) => {
+              const availableTicketTypes = (form.ticketTypes || []).filter(
+                (t) => t.name.trim(),
+              );
+              return (
+                <div
+                  key={gd.id || `new-gd-${index}`}
+                  className="rounded-[10px] border border-[#e5e7eb] bg-[#f9fafb] p-4"
+                >
+                  {/* Card header */}
+                  <div className="mb-4 flex items-center justify-between">
+                    <p className="text-lg font-semibold text-black">{`Discount Tier ${index + 1}`}</p>
+                    <button
+                      type="button"
+                      onClick={() => removeGroupDiscount(index)}
+                      className="text-red-500 transition-colors hover:text-red-700"
+                      aria-label={`Remove discount tier ${index + 1}`}
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  {/* Row 1: Ticket Type | Min Quantity */}
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1">
+                      <label
+                        className="text-sm font-medium text-[#4a5565]"
+                        htmlFor={`gdTicketType-${index}`}
+                      >
+                        Ticket Type (Optional)
+                      </label>
+                      <div className="relative">
+                        <select
+                          id={`gdTicketType-${index}`}
+                          value={gd.ticketTypeId}
+                          className="h-[42px] w-full appearance-none rounded-[10px] border border-[#d1d5dc] bg-white px-4 pr-10 text-base outline-none focus:border-[#5c8bd9] focus:ring-1 focus:ring-[#5c8bd9]"
+                          onChange={(e) =>
+                            updateGroupDiscountField(
+                              index,
+                              "ticketTypeId",
+                              e.target.value,
+                            )
+                          }
+                        >
+                          <option value="">All Ticket Types</option>
+                          {availableTicketTypes.map((t, ticketIndex) => (
+                            <option
+                              key={t.id || `ticket-${ticketIndex}`}
+                              value={t.id || `ticket-${ticketIndex}`}
+                            >
+                              {t.name}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label
+                        className="text-sm font-medium text-[#4a5565]"
+                        htmlFor={`gdMinQuantity-${index}`}
+                      >
+                        Minimum Quantity
+                      </label>
+                      <input
+                        id={`gdMinQuantity-${index}`}
+                        type="text"
+                        inputMode="numeric"
+                        value={gd.minQuantity}
+                        placeholder="e.g., 5"
+                        className="h-[42px] w-full rounded-[10px] border border-[#d1d5dc] bg-white px-4 text-base outline-none focus:border-[#5c8bd9] focus:ring-1 focus:ring-[#5c8bd9]"
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9]/g, "");
+                          updateGroupDiscountField(index, "minQuantity", val);
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 2: Discount Type | Discount Value */}
+                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1">
+                      <label
+                        className="text-sm font-medium text-[#4a5565]"
+                        htmlFor={`gdDiscountType-${index}`}
+                      >
+                        Discount Type
+                      </label>
+                      <div className="relative">
+                        <select
+                          id={`gdDiscountType-${index}`}
+                          value={gd.discountType}
+                          className="h-[42px] w-full appearance-none rounded-[10px] border border-[#d1d5dc] bg-white px-4 pr-10 text-base outline-none focus:border-[#5c8bd9] focus:ring-1 focus:ring-[#5c8bd9]"
+                          onChange={(e) =>
+                            updateGroupDiscountField(
+                              index,
+                              "discountType",
+                              e.target.value as "PERCENTAGE" | "FIXED",
+                            )
+                          }
+                        >
+                          <option value="PERCENTAGE">Percentage</option>
+                          <option value="FIXED">Fixed Amount</option>
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label
+                        className="text-sm font-medium text-[#4a5565]"
+                        htmlFor={`gdDiscountValue-${index}`}
+                      >
+                        {gd.discountType === "PERCENTAGE"
+                          ? "Discount %"
+                          : "Discount Amount"}
+                      </label>
+                      <input
+                        id={`gdDiscountValue-${index}`}
+                        type="text"
+                        inputMode="decimal"
+                        value={gd.discountValue}
+                        placeholder={
+                          gd.discountType === "PERCENTAGE" ? "e.g., 10" : "e.g., 5.00"
+                        }
+                        className="h-[42px] w-full rounded-[10px] border border-[#d1d5dc] bg-white px-4 text-base outline-none focus:border-[#5c8bd9] focus:ring-1 focus:ring-[#5c8bd9]"
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9.]/g, "");
+                          updateGroupDiscountField(index, "discountValue", val);
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 3: Active toggle */}
+                  <div className="mt-4 flex items-center gap-2">
+                    <input
+                      id={`gdIsActive-${index}`}
+                      type="checkbox"
+                      checked={gd.isActive}
+                      onChange={(e) =>
+                        updateGroupDiscountField(index, "isActive", e.target.checked)
+                      }
+                      className="h-4 w-4 rounded border-gray-300 text-[#5c8bd9] focus:ring-[#5c8bd9]"
+                    />
+                    <label
+                      htmlFor={`gdIsActive-${index}`}
+                      className="text-sm text-[#4a5565]"
+                    >
+                      Active
+                    </label>
                   </div>
                 </div>
               );
