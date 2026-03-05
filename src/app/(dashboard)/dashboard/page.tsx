@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { OrderStatus, Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { requireOrganizerProfile } from '@/lib/dashboard/organizer'
@@ -104,6 +105,20 @@ export default async function DashboardHomePage() {
         </div>
       </div>
 
+      {stats.totalEvents === 0 && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Get started with your first event</h2>
+              <p className="mt-1 text-sm text-gray-600">Create an event to start selling tickets and managing attendees.</p>
+            </div>
+            <Link href="/create-event" className="inline-flex shrink-0 rounded-md bg-[#5C8BD9] px-4 py-2 text-sm font-medium text-white hover:bg-[#4a7bc9]">
+              Create Your First Event
+            </Link>
+          </div>
+        </div>
+      )}
+
       <DashboardStats stats={stats} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -122,12 +137,14 @@ export default async function DashboardHomePage() {
         <div className="space-y-6">
           <SalesTrendChart
             title="Sales Trend – Last 30 Days"
-            noDataText="No data yet."
+            noDataText="No sales data yet"
             data={analytics.dailySales}
+            showCreateEventCta={stats.totalEvents === 0}
           />
           <SalesChart
             title="Top Selling Events"
             data={analytics.topEvents}
+            showCreateEventCta={stats.totalEvents === 0}
           />
         </div>
       </div>

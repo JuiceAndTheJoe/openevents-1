@@ -48,7 +48,7 @@ export function EventCard({ event }: EventCardProps) {
       className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
       aria-label={`View event: ${event.title}`}
     >
-      <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-[#f2f2f4] shadow-[0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] transition-shadow hover:shadow-lg">
+      <div className="flex h-full flex-col overflow-hidden rounded-xl bg-[#f2f2f4] shadow-[0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] transition-shadow hover:shadow-lg">
         {/* Image section */}
         <div className="relative h-[200px] w-full shrink-0 bg-gradient-to-r from-blue-500 to-indigo-600">
           {event.coverImage ? (

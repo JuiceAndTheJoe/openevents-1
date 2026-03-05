@@ -3,6 +3,7 @@ import { EventStatus, Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { requireOrganizerProfile, buildEventWhereClause } from '@/lib/dashboard/organizer'
 import { EventsTable } from '@/components/dashboard/EventsTable'
+import { Input } from '@/components/ui/input'
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -72,11 +73,13 @@ export default async function OrganizerEventsPage({ searchParams }: PageProps) {
       <form className="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-4 md:grid-cols-4">
         <div className="md:col-span-2">
           <label htmlFor="q" className="text-xs font-medium text-gray-600">Search by title</label>
-          <input id="q" name="q" defaultValue={query || ''} className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm" />
+          <div className="mt-1">
+            <Input id="q" name="q" defaultValue={query || ''} placeholder="Search events..." />
+          </div>
         </div>
         <div>
           <label htmlFor="status" className="text-xs font-medium text-gray-600">Status</label>
-          <select id="status" name="status" defaultValue={status || ''} className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm">
+          <select id="status" name="status" defaultValue={status || ''} className="mt-1 h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             <option value="">All</option>
             <option value="DRAFT">DRAFT</option>
             <option value="PUBLISHED">PUBLISHED</option>

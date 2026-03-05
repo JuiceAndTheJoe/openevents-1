@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
-import { ChevronDown, Download } from 'lucide-react'
+import { ChevronDown, Download, Copy, Check } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Button } from '@/components/ui/button'
 
@@ -14,6 +15,27 @@ const itemClass =
   'flex cursor-pointer select-none items-center px-3 py-2 text-sm text-gray-700 outline-none hover:bg-gray-50 focus:bg-gray-50 rounded'
 
 export function EventActionButtons({ eventId, eventSlug }: Props) {
+  const [copied, setCopied] = useState(false)
+
+  async function copyEventLink() {
+    const url = `${window.location.origin}/events/${eventSlug}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea')
+      textArea.value = url
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
       {/* Edit Event button */}
@@ -65,6 +87,19 @@ export function EventActionButtons({ eventId, eventSlug }: Props) {
       <Link href={`/dashboard/events/${eventId}/scan`}>
         <Button variant="outline">Scan Tickets</Button>
       </Link>
+      <Button variant="outline" onClick={copyEventLink}>
+        {copied ? (
+          <>
+            <Check className="mr-1 h-4 w-4 text-green-500" />
+            Copied!
+          </>
+        ) : (
+          <>
+            <Copy className="mr-1 h-4 w-4" />
+            Copy Link
+          </>
+        )}
+      </Button>
       <Link href={`/events/${eventSlug}`} target="_blank" rel="noopener noreferrer">
         <Button>Open Public Page</Button>
       </Link>

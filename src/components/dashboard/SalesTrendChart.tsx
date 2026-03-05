@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
 import { formatCurrency } from '@/lib/utils'
 
@@ -8,6 +9,7 @@ type SalesTrendChartProps = {
   noDataText: string
   data: Array<{ date: string; revenue: number | string | null; ticketsSold?: number | string | null }>
   currency?: string
+  showCreateEventCta?: boolean
 }
 
 // SVG coordinate system
@@ -73,7 +75,7 @@ function toCountValue(value: number | string | null | undefined): number {
 
 type View = 'daily' | 'weekly'
 
-export function SalesTrendChart({ title, noDataText, data, currency = 'SEK' }: SalesTrendChartProps) {
+export function SalesTrendChart({ title, noDataText, data, currency = 'SEK', showCreateEventCta = false }: SalesTrendChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [view, setView] = useState<View>('daily')
 
@@ -114,7 +116,22 @@ export function SalesTrendChart({ title, noDataText, data, currency = 'SEK' }: S
             </button>
           </div>
         </div>
-        <p className="mt-6 text-sm text-gray-400">{noDataText}</p>
+        <div className="mt-8 flex flex-col items-center justify-center py-8">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+            <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <p className="text-gray-900 font-medium">{noDataText}</p>
+          <p className="mt-1 text-sm text-gray-500 text-center max-w-xs">
+            Data will appear here once you publish an event and receive orders.
+          </p>
+          {showCreateEventCta && (
+            <Link href="/create-event" className="mt-4 inline-flex rounded-md bg-[#5C8BD9] px-4 py-2 text-sm font-medium text-white hover:bg-[#4a7bc9]">
+              Create Your First Event
+            </Link>
+          )}
+        </div>
       </section>
     )
   }

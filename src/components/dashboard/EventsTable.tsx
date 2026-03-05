@@ -133,8 +133,17 @@ export function EventsTable({ events }: EventsTableProps) {
 
   if (events.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center text-gray-600">
-        No events match the current filters.
+      <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+          <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <p className="text-gray-900 font-medium">No events found</p>
+        <p className="mt-1 text-sm text-gray-500">Get started by creating your first event.</p>
+        <Link href="/create-event" className="mt-4 inline-flex rounded-md bg-[#5C8BD9] px-4 py-2 text-sm font-medium text-white hover:bg-[#4a7bc9]">
+          Create Event
+        </Link>
       </div>
     )
   }

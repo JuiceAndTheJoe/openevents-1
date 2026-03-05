@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { Copy, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/toaster'
@@ -24,6 +25,17 @@ export function DiscountCodeList({ discountCodes, deleteAction }: DiscountCodeLi
   const showToast = useToast()
   const [pendingDelete, setPendingDelete] = useState<DiscountCode | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  async function copyToClipboard(code: string, id: string) {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch {
+      showToast('Failed to copy to clipboard', 'error')
+    }
+  }
 
   function handleConfirmDelete() {
     if (!pendingDelete) return
@@ -52,11 +64,30 @@ export function DiscountCodeList({ discountCodes, deleteAction }: DiscountCodeLi
           <div className="mt-4 space-y-3">
             {discountCodes.map((discountCode) => (
               <div key={discountCode.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-100 p-3">
-                <div>
-                  <p className="font-medium text-gray-900">{discountCode.code}</p>
-                  <p className="text-sm text-gray-600">
-                    {discountCode.discountType} · Value: {discountCode.discountValue} · Tickets used: {discountCode.usedCount}/{discountCode.maxUses ?? 'Unlimited'} · {discountCode.isActive ? 'Active' : 'Inactive'}
-                  </p>
+                <div className="flex items-center gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900">{discountCode.code}</p>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(discountCode.code, discountCode.id)}
+                        className="inline-flex items-center justify-center rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                        title="Copy code"
+                      >
+                        {copiedId === discountCode.id ? (
+                          <Check className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </button>
+                      {copiedId === discountCode.id && (
+                        <span className="text-xs text-green-600">Copied!</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      {discountCode.discountType} · Value: {discountCode.discountValue} · Tickets used: {discountCode.usedCount}/{discountCode.maxUses ?? 'Unlimited'} · {discountCode.isActive ? 'Active' : 'Inactive'}
+                    </p>
+                  </div>
                 </div>
                 <Button
                   variant="destructive"

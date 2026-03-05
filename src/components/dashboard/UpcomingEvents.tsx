@@ -24,7 +24,17 @@ export function UpcomingEvents({ events }: UpcomingEventsProps) {
       </div>
 
       {events.length === 0 ? (
-        <p className="text-sm text-gray-600">No upcoming events.</p>
+        <div className="text-center py-6">
+          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
+            <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <p className="text-sm text-gray-500">No upcoming events yet.</p>
+          <Link href="/create-event" className="mt-3 inline-flex rounded-md bg-[#5C8BD9] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#4a7bc9]">
+            Create Event
+          </Link>
+        </div>
       ) : (
         <div className="space-y-3">
           {events.map((event) => (
