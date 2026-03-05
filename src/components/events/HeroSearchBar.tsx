@@ -7,6 +7,7 @@ type Category = { id: string; name: string; slug: string }
 
 type HeroSearchBarProps = {
   categories: Category[]
+  showCategoryPills?: boolean
   initial?: {
     search?: string
     dateFrom?: string
@@ -16,7 +17,7 @@ type HeroSearchBarProps = {
   }
 }
 
-export function HeroSearchBar({ categories, initial }: HeroSearchBarProps) {
+export function HeroSearchBar({ categories, showCategoryPills = true, initial }: HeroSearchBarProps) {
   const router = useRouter()
 
   const [search, setSearch] = useState(initial?.search ?? '')
@@ -341,7 +342,7 @@ export function HeroSearchBar({ categories, initial }: HeroSearchBarProps) {
       </div>
 
       {/* ── Category pills ─────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-4 mt-3 overflow-x-auto pb-1 scrollbar-hide">
+      {showCategoryPills && <div className="flex items-center gap-4 mt-3 overflow-x-auto pb-1 scrollbar-hide">
         <FilterIcon />
         <div className="flex items-center gap-3 flex-nowrap">
           <button
@@ -385,7 +386,7 @@ export function HeroSearchBar({ categories, initial }: HeroSearchBarProps) {
             </button>
           ))}
         </div>
-      </div>
+      </div>}
     </div>
   )
 }
