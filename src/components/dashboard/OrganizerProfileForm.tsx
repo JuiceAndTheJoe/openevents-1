@@ -43,10 +43,6 @@ export function OrganizerProfileForm({ initial, action }: OrganizerProfileFormPr
           <Input id="logo" name="logo" defaultValue={initial.logo || ''} />
         </div>
         <div>
-          <Label htmlFor="twitter">Twitter</Label>
-          <Input id="twitter" name="twitter" defaultValue={initial.socialLinks.twitter || ''} />
-        </div>
-        <div>
           <Label htmlFor="linkedin">LinkedIn</Label>
           <Input id="linkedin" name="linkedin" defaultValue={initial.socialLinks.linkedin || ''} />
         </div>

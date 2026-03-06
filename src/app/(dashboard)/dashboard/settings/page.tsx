@@ -26,8 +26,9 @@ export default async function OrganizerSettingsPage() {
     const website = String(formData.get('website') || '').trim() || null
     const logo = String(formData.get('logo') || '').trim() || null
 
+    const existingSocialLinks = (profile.socialLinks as Record<string, string> | null) || {}
     const socialLinks = {
-      twitter: String(formData.get('twitter') || '').trim(),
+      ...existingSocialLinks,
       linkedin: String(formData.get('linkedin') || '').trim(),
     }
 

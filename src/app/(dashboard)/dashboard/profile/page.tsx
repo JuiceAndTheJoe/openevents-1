@@ -113,10 +113,6 @@ export default async function OrganizerProfilePage() {
             <p className="font-medium text-gray-900">LinkedIn</p>
             <p className="mt-1">{socialLinks.linkedin || 'Not set'}</p>
           </div>
-          <div>
-            <p className="font-medium text-gray-900">Twitter</p>
-            <p className="mt-1">{socialLinks.twitter || 'Not set'}</p>
-          </div>
         </div>
       </section>
 
