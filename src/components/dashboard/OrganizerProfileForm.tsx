@@ -26,6 +26,26 @@ export function OrganizerProfileForm({ initial, action }: OrganizerProfileFormPr
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const [logoUploadError, setLogoUploadError] = useState<string | null>(null)
 
+  function extractXmlTagValue(xml: string, tagName: string): string | null {
+    const match = xml.match(new RegExp(`<${tagName}>([^<]+)</${tagName}>`))
+    return match?.[1] ?? null
+  }
+
+  function formatUploadFailureMessage(responseBody: string): string {
+    const code = extractXmlTagValue(responseBody, 'Code')
+    const message = extractXmlTagValue(responseBody, 'Message')
+
+    if (code === 'SignatureDoesNotMatch') {
+      return 'Storage config error: invalid S3 signature/credentials for uploads.'
+    }
+
+    if (message) {
+      return message
+    }
+
+    return 'Could not upload logo.'
+  }
+
   useEffect(() => {
     return () => {
       if (localLogoPreviewUrlRef.current) {
@@ -73,7 +93,8 @@ export function OrganizerProfileForm({ initial, action }: OrganizerProfileFormPr
       })
 
       if (!uploadResponse.ok) {
-        setLogoUploadError('Could not upload logo.')
+        const responseBody = await uploadResponse.text().catch(() => '')
+        setLogoUploadError(formatUploadFailureMessage(responseBody))
         return
       }
 
@@ -87,8 +108,9 @@ export function OrganizerProfileForm({ initial, action }: OrganizerProfileFormPr
       setLogoUrl(publicUrl)
       setLogoPreviewUrl(nextPreviewUrl)
       setLogoVersion(Date.now())
-    } catch {
-      setLogoUploadError('Could not upload logo.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : null
+      setLogoUploadError(message || 'Could not upload logo.')
     } finally {
       setIsUploadingLogo(false)
     }
