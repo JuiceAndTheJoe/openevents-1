@@ -5,7 +5,7 @@ import { requireOrganizerProfile } from '@/lib/dashboard/organizer'
 import { OrganizerProfileForm } from '@/components/dashboard/OrganizerProfileForm'
 
 export default async function OrganizerSettingsPage() {
-  const { organizerProfile } = await requireOrganizerProfile()
+  const { user, organizerProfile } = await requireOrganizerProfile()
 
   // Super admins without an organizer profile should use the admin panel
   if (!organizerProfile) {
@@ -49,6 +49,7 @@ export default async function OrganizerSettingsPage() {
   return (
     <OrganizerProfileForm
       initial={{
+        userId: user.id,
         orgName: organizerProfile.orgName,
         description: organizerProfile.description,
         logo: organizerProfile.logo,
