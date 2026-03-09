@@ -1773,7 +1773,6 @@ export function EventForm({
 
     const handlePopState = () => {
       if (bypassNavigationGuardRef.current) {
-        bypassNavigationGuardRef.current = false;
         return;
       }
 
