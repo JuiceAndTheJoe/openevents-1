@@ -1,6 +1,8 @@
 # Contributing to OpenEvents
 
-Welcome to OpenEvents! This guide will help you get started with development and contribute to the project.
+Welcome to OpenEvents! This guide will help you contribute to the project hosted at [github.com/JuiceAndTheJoe/openevents](https://github.com/JuiceAndTheJoe/openevents), which powers the live deployment at [events.apps.osaas.io](https://events.apps.osaas.io).
+
+> **Want your own instance instead?** If you want to deploy a separate OpenEvents instance for your own events, see [Option 2: Deploy Your Own Instance](./README.md#option-2-deploy-your-own-instance) in the README.
 
 ## Prerequisites
 
@@ -14,7 +16,7 @@ Welcome to OpenEvents! This guide will help you get started with development and
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/JuiceAndTheJoe/openevents.git
 cd openevents
 ```
 
@@ -263,27 +265,23 @@ See `.env.example` for the complete list. Key variables:
 
 ## Deployment to OSC
 
-### Automatic Deployment
+The live deployment at [events.apps.osaas.io](https://events.apps.osaas.io) runs on Eyevinn Open Source Cloud.
 
-When you push to the `main` branch:
+### Deploying Changes
 
-1. OSC Web Runner detects the update
-2. Pulls the latest code from GitHub
-3. Runs `npm install` and `npm run build`
-4. Restarts the application
+Changes merged to `main` require a **manual restart** of the Web Runner instance to go live. When restarted, OSC will:
 
-### Manual Deployment
+1. Pull the latest code from GitHub
+2. Run `npm install` and `npm run build`
+3. Start the updated application
 
-If needed, you can trigger a restart via OSC:
+**For the main deployment (events.apps.osaas.io):** Contact the project maintainers to trigger a restart after your PR is merged.
 
-```bash
-# Using OSC CLI
-npx @osaas/cli restart eyevinn-web-runner openevents
-```
+**For your own instance:** Restart your Web Runner through your OSC account to deploy changes pushed to your fork.
 
 ### Environment Variables in OSC
 
-Environment variables are configured through OSC's Web Runner service. Contact the project admin to update production variables.
+Environment variables for the production deployment are configured through OSC's Web Runner service. Contact the project maintainers to update production variables.
 
 ## Troubleshooting
 

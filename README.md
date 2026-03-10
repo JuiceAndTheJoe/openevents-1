@@ -228,15 +228,32 @@ npm run lint
 
 ## Deployment
 
-This project is deployed on [Eyevinn Open Source Cloud (OSC)](https://www.osaas.io/). See [ARCHITECTURE.md](./ARCHITECTURE.md) for OSC service configuration.
+This project is deployed on [Eyevinn Open Source Cloud (OSC)](https://www.osaas.io/) at [events.apps.osaas.io](https://events.apps.osaas.io).
 
-### Deploying Your Own Instance
+### Option 1: Contribute to the Existing Deployment
 
-To deploy OpenEvents for STSWE26 ticket sales:
+To contribute features or fixes to the live site at events.apps.osaas.io:
 
-1. Clone the repository and set up the development environment according to [CONTRIBUTING.md](./CONTRIBUTING.md)
-2. Ensure your AI coding assistant is connected to GitHub and OSC via MCP
-3. Ask your assistant to "set up OpenEvents on my OSC"
+1. Fork or clone [github.com/JuiceAndTheJoe/openevents](https://github.com/JuiceAndTheJoe/openevents)
+2. Set up your local development environment (see [Quick Start](#quick-start))
+3. Make your changes following the guidelines in [CONTRIBUTING.md](./CONTRIBUTING.md)
+4. Submit a pull request to `main`
+
+**Note:** Merged changes will only appear on the live site after someone with access to the OpenEvents OSC account restarts the application.
+
+### Option 2: Deploy Your Own Instance
+
+To deploy a separate OpenEvents instance on your own OSC account:
+
+1. Fork the repository to your GitHub account
+2. Ensure your AI coding assistant (Claude Code, Cursor, etc.) is connected to GitHub and [OSC via MCP](https://www.npmjs.com/package/@osaas/mcp)
+3. Ask your assistant: *"Set up OpenEvents on my OSC from my fork"*
+
+The assistant will provision the required OSC services (PostgreSQL, Valkey, MinIO, Web Runner) and configure the environment.
+
+To deploy changes pushed to your fork's `main` branch, restart your Web Runner instance through OSC.
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for details on OSC service configuration.
 
 ## Known Limitations & Recommendations
 
