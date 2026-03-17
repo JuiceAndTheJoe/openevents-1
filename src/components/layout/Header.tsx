@@ -44,6 +44,12 @@ export function Header() {
   // On public pages and auth pages, keep header minimal for logged-out users.
   const isPublicPage = !isOrganizerRoute && !isAuthPage
 
+  // TEMPORARY: Featured event button URL changes based on current page (remove after launch)
+  const isOnFeaturedEvent = pathname.startsWith('/events/streaming-tech-2026-5fa0c1d6')
+  const featuredEventHref = isOnFeaturedEvent
+    ? 'https://www.streamingtech.se/stswe26.html'
+    : '/events/streaming-tech-2026-5fa0c1d6'
+
   useEffect(() => {
     function onPointerDown(event: MouseEvent | TouchEvent) {
       if (!accountMenuRef.current) return
@@ -97,12 +103,12 @@ export function Header() {
           {/* Desktop Navigation */}
           <div className="hidden md:flex md:items-center md:space-x-6">
             {/* TEMPORARY: Featured event button for launch period (remove after launch) */}
-            <Link
-              href="/events/streaming-tech-2026-5fa0c1d6"
+            <a
+              href={featuredEventHref}
               className="inline-flex items-center justify-center rounded-lg bg-[#5C8BD9] px-4 py-2 text-sm font-semibold tracking-wide text-white shadow-sm transition hover:bg-[#4a7ac8]"
             >
               Streaming Tech 2026
-            </Link>
+            </a>
             {canManageEvents && (
               <Link
                 href="/create-event"
@@ -226,13 +232,13 @@ export function Header() {
         {mobileMenuOpen && (
           <div className="space-y-2 border-t border-gray-100 py-4 md:hidden">
             {/* TEMPORARY: Featured event button for launch period (remove after launch) */}
-            <Link
-              href="/events/streaming-tech-2026-5fa0c1d6"
+            <a
+              href={featuredEventHref}
               className="block rounded-lg bg-[#5C8BD9] px-3 py-2.5 text-center text-sm font-semibold tracking-wide text-white hover:bg-[#4a7ac8]"
               onClick={() => setMobileMenuOpen(false)}
             >
               Streaming Tech 2026
-            </Link>
+            </a>
             {canManageEvents && (
               <Link
                 href="/create-event"
