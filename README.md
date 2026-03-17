@@ -297,6 +297,8 @@ During the initial launch period, the homepage (`/`) and events listing page (`/
   - Sign-out redirects to `/about`
   - "Streaming Tech 2026" button added (links to `/events/streaming-tech-2026-5fa0c1d6`, or to `https://www.streamingtech.se/stswe26.html` when already on the event page)
   - "Create Event" button restyled as secondary (outline)
+- **About page** (`src/app/(public)/about/page.tsx`):
+  - Added "Streaming Tech Sweden 2026" section with link to the event page
 
 ### How to Revert
 
@@ -312,7 +314,10 @@ Search for `TEMPORARY` in the codebase to find all affected locations:
    - Remove the "Streaming Tech 2026" button (desktop and mobile, using `<a>` tags)
    - Restore "Create Event" button to primary style (solid blue background)
 
-3. **Delete this README section**
+3. **Revert the About page** (`src/app/(public)/about/page.tsx`):
+   - Remove the "Streaming Tech Sweden 2026" section
+
+4. **Delete this README section**
 
 ## Contributing
 
