@@ -295,7 +295,7 @@ During the initial launch period, the homepage (`/`) and events listing page (`/
 - **Header** (`src/components/layout/Header.tsx`):
   - Logo links to `/about` instead of `/`
   - Sign-out redirects to `/about`
-  - "Streaming Tech 2026" button added linking to `/events/streaming-tech-2026-5fa0c1d6`
+  - "Streaming Tech 2026" button added (links to `/events/streaming-tech-2026-5fa0c1d6`, or to `https://www.streamingtech.se/stswe26.html` when already on the event page)
   - "Create Event" button restyled as secondary (outline)
 
 ### How to Revert
@@ -308,7 +308,8 @@ Search for `TEMPORARY` in the codebase to find all affected locations:
 2. **Revert the Header component** (`src/components/layout/Header.tsx`):
    - Change logo `href="/about"` back to `href="/"`
    - Change both `signOut({ callbackUrl: '/about' })` calls back to `signOut({ callbackUrl: '/' })`
-   - Remove the "Streaming Tech 2026" button (desktop and mobile)
+   - Remove the `isOnFeaturedEvent` and `featuredEventHref` variables
+   - Remove the "Streaming Tech 2026" button (desktop and mobile, using `<a>` tags)
    - Restore "Create Event" button to primary style (solid blue background)
 
 3. **Delete this README section**
