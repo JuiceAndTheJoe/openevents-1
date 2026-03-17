@@ -87,9 +87,9 @@ export function Header() {
     <header className="bg-white border-b border-gray-200 print:hidden">
       <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-3">
-          {/* Logo */}
+          {/* Logo - TEMPORARY: Links to /about during launch period (revert to "/" later) */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center">
+            <Link href="/about" className="flex items-center">
               <span className="text-xl font-bold text-[#5C8BD9] sm:text-2xl">OpenEvents</span>
             </Link>
           </div>
@@ -158,7 +158,8 @@ export function Header() {
                         className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                         onClick={() => {
                           setAccountMenuOpen(false)
-                          signOut({ callbackUrl: '/' })
+                          // TEMPORARY: Using /about during launch period (revert to "/" later)
+                          signOut({ callbackUrl: '/about' })
                         }}
                       >
                         Sign out
@@ -249,7 +250,8 @@ export function Header() {
                   className="block w-full text-left px-3 py-2 text-gray-600 hover:bg-gray-50 rounded-md"
                   onClick={() => {
                     setMobileMenuOpen(false)
-                    signOut({ callbackUrl: '/' })
+                    // TEMPORARY: Using /about during launch period (revert to "/" later)
+                    signOut({ callbackUrl: '/about' })
                   }}
                 >
                   Sign out

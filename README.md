@@ -283,6 +283,30 @@ Ticket buyers do not create accounts on the platform. This was a deliberate deci
 - Implement an order lookup feature using email + order number
 - Add optional account creation during checkout
 
+## Temporary Launch Redirects
+
+> **Note:** This section describes a temporary configuration for the platform launch. Remove this section and revert the changes when no longer needed.
+
+During the initial launch period, the homepage (`/`) and events listing page (`/events`) are temporarily redirected to `/about`. This allows sharing specific event URLs (e.g., `/events/streaming-tech-2026`) while keeping the general discovery pages hidden.
+
+### What's Affected
+
+- **Middleware** (`src/middleware.ts`): Redirects `/` and `/events` to `/about` with a 307 (Temporary Redirect)
+- **Header** (`src/components/layout/Header.tsx`): Logo links to `/about` instead of `/`, sign-out redirects to `/about`
+
+### How to Revert
+
+Search for `TEMPORARY` in the codebase to find all affected locations:
+
+1. **Remove the redirect block in middleware** (`src/middleware.ts`):
+   Delete the "TEMPORARY LAUNCH REDIRECT" section (approximately lines 48-58)
+
+2. **Revert the Header component** (`src/components/layout/Header.tsx`):
+   - Change logo `href="/about"` back to `href="/"`
+   - Change both `signOut({ callbackUrl: '/about' })` calls back to `signOut({ callbackUrl: '/' })`
+
+3. **Delete this README section**
+
 ## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
