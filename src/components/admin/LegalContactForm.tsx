@@ -83,6 +83,7 @@ export function LegalContactForm({ initialData }: LegalContactFormProps) {
       }
 
       setMessage({ type: 'success', text: 'Content saved successfully.' })
+      window.dispatchEvent(new CustomEvent('legal-content-updated'))
     } catch (error) {
       setMessage({
         type: 'error',

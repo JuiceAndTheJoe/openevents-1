@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 
@@ -39,7 +39,7 @@ export function OrganizerSidebarNav() {
   const isSuperAdmin = session?.user?.roles?.includes('SUPER_ADMIN')
   const [legalNeedsAttention, setLegalNeedsAttention] = useState(false)
 
-  useEffect(() => {
+  const checkLegalStatus = useCallback(() => {
     if (!isSuperAdmin) return
 
     fetch('/api/admin/legal')
@@ -52,6 +52,13 @@ export function OrganizerSidebarNav() {
       })
       .catch(() => {})
   }, [isSuperAdmin])
+
+  useEffect(() => {
+    checkLegalStatus()
+
+    window.addEventListener('legal-content-updated', checkLegalStatus)
+    return () => window.removeEventListener('legal-content-updated', checkLegalStatus)
+  }, [checkLegalStatus])
 
   const navItems: NavItem[] = [
     { id: 'scan', href: '/dashboard/scan', label: 'Scan Tickets' },
