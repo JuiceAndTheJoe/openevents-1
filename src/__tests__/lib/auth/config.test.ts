@@ -17,9 +17,6 @@ vi.mock('@/lib/db', () => ({
     user: {
       findFirst: vi.fn(),
     },
-    userRole: {
-      create: vi.fn(),
-    },
   },
 }))
 
@@ -66,7 +63,7 @@ function createMockUser(overrides: Partial<{
     emailVerified: new Date('2024-01-01'),
     deletedAt: null,
     deletionScheduledFor: null,
-    roles: [{ role: 'ATTENDEE' as Role }],
+    roles: [] as Array<{ role: Role }>,
     ...overrides,
   }
 }
@@ -129,7 +126,7 @@ describe('Auth Config Callbacks', () => {
         email: 'test@example.com',
         name: 'Test User',
         image: null,
-        roles: ['ATTENDEE'],
+        roles: [],
         emailVerified: mockUser.emailVerified,
       })
     })
@@ -328,7 +325,7 @@ describe('Auth Config Callbacks', () => {
         email: 'test@example.com',
         name: 'Test User',
         image: 'https://example.com/avatar.jpg',
-        roles: ['ATTENDEE' as Role, 'ORGANIZER' as Role],
+        roles: ['ORGANIZER' as Role],
         emailVerified: new Date('2024-01-01'),
       }
 
@@ -341,7 +338,7 @@ describe('Auth Config Callbacks', () => {
         email: 'test@example.com',
         name: 'Test User',
         image: 'https://example.com/avatar.jpg',
-        roles: ['ATTENDEE', 'ORGANIZER'],
+        roles: ['ORGANIZER'],
         emailVerified: user.emailVerified,
       })
     })
@@ -353,7 +350,7 @@ describe('Auth Config Callbacks', () => {
         email: 'test@example.com',
         name: 'Test User',
         image: null,
-        roles: ['ATTENDEE' as Role],
+        roles: ['ORGANIZER' as Role],
         emailVerified: new Date('2024-01-01'),
       }
 
@@ -377,7 +374,7 @@ describe('Auth Config Callbacks', () => {
         email: 'old@example.com',
         name: 'Old Name',
         image: 'old-image.jpg',
-        roles: ['ATTENDEE' as Role],
+        roles: ['ORGANIZER' as Role],
         emailVerified: new Date('2024-01-01'),
       }
 
@@ -407,7 +404,7 @@ describe('Auth Config Callbacks', () => {
         email: 'test@example.com',
         name: 'Test User',
         image: 'avatar.jpg',
-        roles: ['ATTENDEE' as Role],
+        roles: ['ORGANIZER' as Role],
         emailVerified: new Date('2024-01-01'),
       }
 
@@ -443,7 +440,7 @@ describe('Auth Config Callbacks', () => {
         email: 'test@example.com',
         name: 'Test User',
         image: null,
-        roles: ['ATTENDEE' as Role],
+        roles: ['ORGANIZER' as Role],
         emailVerified: new Date('2024-01-01'),
       }
 
@@ -475,7 +472,7 @@ describe('Auth Config Callbacks', () => {
       const token = {
         id: '',
         email: 'test@example.com',
-        roles: ['ATTENDEE' as Role],
+        roles: ['ORGANIZER' as Role],
         emailVerified: null,
       }
 
@@ -501,7 +498,7 @@ describe('Auth Config Callbacks', () => {
       const token = {
         id: 'user-123',
         email: 'test@example.com',
-        roles: ['ATTENDEE' as Role],
+        roles: ['ORGANIZER' as Role],
         emailVerified: null,
       }
 
@@ -527,7 +524,7 @@ describe('Auth Config Callbacks', () => {
       const token = {
         id: 'deleted-user-123',
         email: 'deleted@example.com',
-        roles: ['ATTENDEE' as Role],
+        roles: ['ORGANIZER' as Role],
         emailVerified: null,
       }
 
@@ -555,7 +552,7 @@ describe('Auth Config Callbacks', () => {
       const token = {
         id: 'user-123',
         email: 'test@example.com',
-        roles: ['ATTENDEE' as Role],
+        roles: ['ORGANIZER' as Role],
         emailVerified: null,
       }
 
@@ -577,7 +574,7 @@ describe('Auth Config Callbacks', () => {
         firstName: 'John',
         lastName: 'Doe',
         image: 'https://example.com/avatar.jpg',
-        roles: [{ role: 'ATTENDEE' as Role }, { role: 'ORGANIZER' as Role }],
+        roles: [{ role: 'ORGANIZER' as Role }],
         emailVerified: new Date('2024-01-01'),
       })
       ;(prisma.user.findFirst as Mock).mockResolvedValue(mockDbUser)
@@ -586,7 +583,7 @@ describe('Auth Config Callbacks', () => {
       const token = {
         id: 'user-123',
         email: 'test@example.com',
-        roles: ['ATTENDEE' as Role],
+        roles: ['ORGANIZER' as Role],
         emailVerified: null,
       }
 
@@ -602,7 +599,7 @@ describe('Auth Config Callbacks', () => {
       expect(result.user.email).toBe('test@example.com')
       expect(result.user.name).toBe('John Doe')
       expect(result.user.image).toBe('https://example.com/avatar.jpg')
-      expect(result.user.roles).toEqual(['ATTENDEE', 'ORGANIZER'])
+      expect(result.user.roles).toEqual(['ORGANIZER'])
       expect(result.user.emailVerified).toEqual(new Date('2024-01-01'))
     })
 
@@ -614,7 +611,7 @@ describe('Auth Config Callbacks', () => {
       const token = {
         id: 'user-123',
         email: 'test@example.com',
-        roles: ['ATTENDEE' as Role],
+        roles: ['ORGANIZER' as Role],
         emailVerified: null,
       }
 
@@ -630,30 +627,4 @@ describe('Auth Config Callbacks', () => {
     })
   })
 
-  describe('events.createUser', () => {
-    const createUser = authOptions.events!.createUser!
-
-    it('assigns ATTENDEE role to new users', async () => {
-      ;(prisma.userRole.create as Mock).mockResolvedValue({
-        id: 'role-123',
-        userId: 'new-user-123',
-        role: 'ATTENDEE',
-      })
-
-      await createUser({
-        user: {
-          id: 'new-user-123',
-          email: 'newuser@example.com',
-          emailVerified: null,
-        },
-      })
-
-      expect(prisma.userRole.create).toHaveBeenCalledWith({
-        data: {
-          userId: 'new-user-123',
-          role: 'ATTENDEE',
-        },
-      })
-    })
-  })
 })
