@@ -1,41 +1,51 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { EventList } from '@/components/events/EventList'
+import { getPlatformSettings } from '@/lib/platform-settings'
 
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
   const now = new Date()
 
-  const featuredEvents = await prisma.event.findMany({
-    where: {
-      status: 'PUBLISHED',
-      visibility: 'PUBLIC',
-      deletedAt: null,
-      endDate: { gte: now },
-    },
-    include: {
-      organizer: {
-        select: {
-          orgName: true,
+  const [settings, featuredEvents] = await Promise.all([
+    getPlatformSettings({
+      homepage_hero_text: 'Events made for business',
+      homepage_hero_image: '',
+    }),
+    prisma.event.findMany({
+      where: {
+        status: 'PUBLISHED',
+        visibility: 'PUBLIC',
+        deletedAt: null,
+        endDate: { gte: now },
+      },
+      include: {
+        organizer: {
+          select: {
+            orgName: true,
+          },
+        },
+        ticketTypes: {
+          where: {
+            isVisible: true,
+          },
+          select: {
+            price: true,
+            currency: true,
+          },
         },
       },
-      ticketTypes: {
-        where: {
-          isVisible: true,
-        },
-        select: {
-          price: true,
-          currency: true,
-        },
-      },
-    },
-    orderBy: [
-      { publishedAt: 'desc' },
-      { startDate: 'asc' },
-    ],
-    take: 12,
-  })
+      orderBy: [
+        { publishedAt: 'desc' },
+        { startDate: 'asc' },
+      ],
+      take: 12,
+    }),
+  ])
+
+  const heroText = settings.homepage_hero_text
+  const heroImage = settings.homepage_hero_image || '/hero-image.jpg'
 
   return (
     <div className="flex flex-col">
@@ -44,8 +54,8 @@ export default async function HomePage() {
           <div className="relative w-full overflow-hidden rounded-[20px]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/hero-image.jpg"
-              alt="Events built for business"
+              src={heroImage}
+              alt={heroText}
               className="h-[220px] w-full object-cover sm:h-[300px] md:h-[360px] lg:h-[420px]"
             />
             <div className="absolute left-4 right-4 top-[10%] rounded-[20px] border border-[rgba(255,255,255,0.31)] bg-[rgba(217,217,217,0.10)] px-4 py-3 backdrop-blur-[17.5px] sm:left-8 sm:right-auto sm:px-6 sm:py-4 md:left-10">
@@ -53,7 +63,7 @@ export default async function HomePage() {
                 className="text-2xl font-bold leading-tight text-white sm:text-4xl md:text-5xl lg:text-[55px]"
                 style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
               >
-                Events built for business
+                {heroText}
               </h1>
             </div>
           </div>

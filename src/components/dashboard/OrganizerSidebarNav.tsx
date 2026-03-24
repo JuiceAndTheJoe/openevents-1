@@ -8,7 +8,7 @@ import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 
 type NavItem = {
-  id: 'scan' | 'overview' | 'events' | 'adminOverview' | 'adminUsers' | 'adminLegal'
+  id: 'scan' | 'overview' | 'events' | 'adminOverview' | 'adminUsers' | 'adminLegal' | 'adminHomepage'
   href: string
   label: string
   badge?: 'attention'
@@ -28,6 +28,8 @@ function isActive(pathname: string, item: NavItem): boolean {
       return pathname.startsWith('/dashboard/admin/users')
     case 'adminLegal':
       return pathname.startsWith('/dashboard/admin/legal')
+    case 'adminHomepage':
+      return pathname.startsWith('/dashboard/admin/homepage')
     default:
       return false
   }
@@ -69,10 +71,11 @@ export function OrganizerSidebarNav() {
     { id: 'adminOverview', href: '/dashboard/admin', label: 'Event Management' },
     { id: 'adminUsers', href: '/dashboard/admin/users', label: 'User Management' },
     { id: 'adminLegal', href: '/dashboard/admin/legal', label: 'Legal & Contact', badge: legalNeedsAttention ? 'attention' : undefined },
+    { id: 'adminHomepage', href: '/dashboard/admin/homepage', label: 'Homepage' },
   ]
 
   const profileSectionActive = pathname === '/dashboard/profile' || pathname.startsWith('/dashboard/settings')
-  const adminSectionActive = pathname === '/dashboard/admin' || pathname.startsWith('/dashboard/admin/users') || pathname.startsWith('/dashboard/admin/legal')
+  const adminSectionActive = pathname === '/dashboard/admin' || pathname.startsWith('/dashboard/admin/users') || pathname.startsWith('/dashboard/admin/legal') || pathname.startsWith('/dashboard/admin/homepage')
   const [adminMenuExpanded, setAdminMenuExpanded] = useState(false)
   const [adminMenuOverride, setAdminMenuOverride] = useState<{ path: string; open: boolean } | null>(null)
   const autoAdminOpen = adminMenuExpanded || adminSectionActive
