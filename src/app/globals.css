@@ -134,6 +134,26 @@ body {
   --tw-ring-color: #475569 !important;
 }
 
+/* --- Arbitrary color overrides (hex values in component classes) --- */
+[data-theme="dark"] .bg-\[\#f2f2f4\] {
+  background-color: #1e293b !important;
+}
+[data-theme="dark"] .bg-\[\#f9fafb\] {
+  background-color: #1e293b !important;
+}
+[data-theme="dark"] .bg-\[\#e5e7eb\] {
+  background-color: #334155 !important;
+}
+[data-theme="dark"] .hover\:bg-\[\#d1d5db\]:hover {
+  background-color: #475569 !important;
+}
+[data-theme="dark"] .text-\[\#364153\] {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .text-\[\#4a5565\] {
+  color: #94a3b8 !important;
+}
+
 /* --- Specific component overrides --- */
 
 /* Pagination controls */
