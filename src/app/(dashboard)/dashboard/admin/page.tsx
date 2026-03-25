@@ -4,6 +4,8 @@ import { prisma } from '@/lib/db'
 import { AdminEventsTable } from '@/components/admin/AdminEventsTable'
 import { WorkspacePageHeader, WorkspaceStatsGrid } from '@/components/layout/WorkspaceShell'
 
+export const dynamic = 'force-dynamic'
+
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
