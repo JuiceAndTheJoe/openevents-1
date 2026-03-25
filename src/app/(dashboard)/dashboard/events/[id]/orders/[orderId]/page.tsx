@@ -16,18 +16,14 @@ type PageProps = {
 }
 
 export default async function EventOrderDetailPage({ params }: PageProps) {
-  const { organizerProfile, isSuperAdmin } = await requireOrganizerProfile()
+  await requireOrganizerProfile()
   const { id, orderId } = await params
-
-  const eventWhere: Prisma.EventWhereInput = isSuperAdmin
-    ? { id, deletedAt: null }
-    : { id, organizerId: organizerProfile!.id, deletedAt: null }
 
   const order = await prisma.order.findFirst({
     where: {
       id: orderId,
       eventId: id,
-      event: eventWhere,
+      event: { id, deletedAt: null },
     },
     select: {
       id: true,
@@ -71,22 +67,18 @@ export default async function EventOrderDetailPage({ params }: PageProps) {
   async function refundAction(formData: FormData) {
     'use server'
 
-    const { event: eventCheck, isSuperAdmin, organizerProfile } = await canAccessEvent(id)
+    const { event: eventCheck } = await canAccessEvent(id)
     if (!eventCheck) {
       throw new Error('Event not found')
     }
 
     const submittedOrderId = String(formData.get('orderId') || '')
 
-    const orderEventWhere: Prisma.EventWhereInput = isSuperAdmin
-      ? { id, deletedAt: null }
-      : { id, organizerId: organizerProfile!.id, deletedAt: null }
-
     const targetOrder = await prisma.order.findFirst({
       where: {
         id: submittedOrderId,
         eventId: id,
-        event: orderEventWhere,
+        event: { id, deletedAt: null },
       },
       select: {
         id: true,
@@ -113,22 +105,18 @@ export default async function EventOrderDetailPage({ params }: PageProps) {
   async function emailAction(formData: FormData) {
     'use server'
 
-    const { event: eventCheck, isSuperAdmin, organizerProfile } = await canAccessEvent(id)
+    const { event: eventCheck } = await canAccessEvent(id)
     if (!eventCheck) {
       throw new Error('Event not found')
     }
 
     const submittedOrderId = String(formData.get('orderId') || '')
 
-    const orderEventWhere: Prisma.EventWhereInput = isSuperAdmin
-      ? { id, deletedAt: null }
-      : { id, organizerId: organizerProfile!.id, deletedAt: null }
-
     const targetOrder = await prisma.order.findFirst({
       where: {
         id: submittedOrderId,
         eventId: id,
-        event: orderEventWhere,
+        event: { id, deletedAt: null },
       },
       include: {
         items: {
@@ -183,22 +171,18 @@ export default async function EventOrderDetailPage({ params }: PageProps) {
   async function markPaidAction(formData: FormData) {
     'use server'
 
-    const { event: eventCheck, isSuperAdmin, organizerProfile } = await canAccessEvent(id)
+    const { event: eventCheck } = await canAccessEvent(id)
     if (!eventCheck) {
       throw new Error('Event not found')
     }
 
     const submittedOrderId = String(formData.get('orderId') || '')
 
-    const orderEventWhere: Prisma.EventWhereInput = isSuperAdmin
-      ? { id, deletedAt: null }
-      : { id, organizerId: organizerProfile!.id, deletedAt: null }
-
     const targetOrder = await prisma.order.findFirst({
       where: {
         id: submittedOrderId,
         eventId: id,
-        event: orderEventWhere,
+        event: { id, deletedAt: null },
       },
       include: {
         items: {
@@ -371,22 +355,18 @@ export default async function EventOrderDetailPage({ params }: PageProps) {
   async function markInvoiceSentAction(formData: FormData) {
     'use server'
 
-    const { event: eventCheck, isSuperAdmin, organizerProfile } = await canAccessEvent(id)
+    const { event: eventCheck } = await canAccessEvent(id)
     if (!eventCheck) {
       throw new Error('Event not found')
     }
 
     const submittedOrderId = String(formData.get('orderId') || '')
 
-    const orderEventWhere: Prisma.EventWhereInput = isSuperAdmin
-      ? { id, deletedAt: null }
-      : { id, organizerId: organizerProfile!.id, deletedAt: null }
-
     const targetOrder = await prisma.order.findFirst({
       where: {
         id: submittedOrderId,
         eventId: id,
-        event: orderEventWhere,
+        event: { id, deletedAt: null },
       },
       select: {
         id: true,

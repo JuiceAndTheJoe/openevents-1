@@ -20,7 +20,7 @@ function readParam(value: string | string[] | undefined): string | undefined {
 }
 
 export default async function EventOrdersPage({ params, searchParams }: PageProps) {
-  const { organizerProfile, isSuperAdmin } = await requireOrganizerProfile()
+  await requireOrganizerProfile()
   const { id } = await params
   const qs = await searchParams
 
@@ -30,7 +30,7 @@ export default async function EventOrdersPage({ params, searchParams }: PageProp
   const dateFrom = readParam(qs.dateFrom)
   const dateTo = readParam(qs.dateTo)
 
-  const eventWhere = buildEventWhereClause(organizerProfile, isSuperAdmin, { id })
+  const eventWhere = buildEventWhereClause(null, true, { id })
 
   const event = await prisma.event.findFirst({
     where: eventWhere,
@@ -94,21 +94,17 @@ export default async function EventOrdersPage({ params, searchParams }: PageProp
   async function applyBulkAction(formData: FormData) {
     'use server'
 
-    const { event: eventCheck, isSuperAdmin, organizerProfile } = await canAccessEvent(id)
+    const { event: eventCheck } = await canAccessEvent(id)
     if (!eventCheck) return
 
     const action = String(formData.get('bulkAction') || '')
 
     if (action !== 'cancel_all_filtered') return
 
-    const eventWhere: Prisma.EventWhereInput = isSuperAdmin
-      ? { id, deletedAt: null }
-      : { id, organizerId: organizerProfile!.id, deletedAt: null }
-
     await prisma.order.updateMany({
       where: {
         eventId: id,
-        event: eventWhere,
+        event: { id, deletedAt: null },
         status: {
           in: ['PENDING', 'PENDING_INVOICE'],
         },
