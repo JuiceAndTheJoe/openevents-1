@@ -85,6 +85,12 @@ export default async function EventOrdersPage({ params, searchParams }: PageProp
       totalAmount: true,
       currency: true,
       createdAt: true,
+      discountCode: {
+        select: {
+          code: true,
+          discountType: true,
+        },
+      },
     },
     orderBy: {
       createdAt: 'desc',
@@ -175,6 +181,10 @@ export default async function EventOrdersPage({ params, searchParams }: PageProp
         orders={orders.map((order) => ({
           ...order,
           totalAmount: Number(order.totalAmount.toString()),
+          discountCode: order.discountCode ? {
+            code: order.discountCode.code,
+            discountType: order.discountCode.discountType,
+          } : null,
         }))}
       />
     </div>

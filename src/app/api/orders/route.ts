@@ -415,7 +415,7 @@ export async function POST(request: NextRequest) {
         let paymentMethod: 'PAYPAL' | 'INVOICE' | 'FREE' = 'PAYPAL'
 
         if (discountCodeRecord?.discountType === 'INVOICE') {
-          status = 'PENDING_INVOICE'
+          status = 'PAID'
           paymentMethod = 'INVOICE'
         } else if (totalAmount === 0 || discountCodeRecord?.discountType === 'FREE_TICKET') {
           status = 'PAID'

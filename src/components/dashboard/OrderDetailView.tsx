@@ -17,6 +17,7 @@ type OrderDetailViewProps = {
     currency: string
     createdAt: Date
     invoiceSentAt?: Date | null
+    discountCode?: string | null
     items: Array<{
       id: string
       quantity: number
@@ -43,6 +44,16 @@ export function OrderDetailView({ order, refundAction, emailAction, markPaidActi
         <p className="mt-1 text-sm text-gray-600">
           {order.status} · {formatPaymentMethodLabel(order.paymentMethod, 'No payment method')} · {formatDateTime(order.createdAt)}
         </p>
+        {order.paymentMethod === 'INVOICE' && (
+          <p className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800">
+            Invoice order, confirm payment externally
+          </p>
+        )}
+        {order.paymentMethod === 'FREE' && order.discountCode && (
+          <p className="mt-2 inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">
+            Free order &mdash; discount code: {order.discountCode}
+          </p>
+        )}
         {isPendingInvoice && (
           <p className="mt-2 text-sm">
             {order.invoiceSentAt ? (

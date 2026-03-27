@@ -39,6 +39,11 @@ export default async function EventOrderDetailPage({ params }: PageProps) {
       currency: true,
       createdAt: true,
       invoiceSentAt: true,
+      discountCode: {
+        select: {
+          code: true,
+        },
+      },
       event: {
         select: {
           title: true,
@@ -420,6 +425,7 @@ export default async function EventOrderDetailPage({ params }: PageProps) {
         discountAmount: Number(order.discountAmount.toString()),
         totalAmount: Number(order.totalAmount.toString()),
         invoiceSentAt: order.invoiceSentAt,
+        discountCode: order.discountCode?.code ?? null,
         items: order.items.map((item) => ({
           ...item,
           unitPrice: Number(item.unitPrice.toString()),
